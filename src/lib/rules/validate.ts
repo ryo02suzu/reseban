@@ -29,7 +29,8 @@ function int(v: unknown, label: string, min = 0): number {
 /** 画面や AI から来たルールを検査して正規化する（不正なら例外） */
 export function validateRule(input: unknown): Rule {
   const r = (input ?? {}) as Record<string, unknown>;
-  const kind = r.kind as Rule["kind"];
+  const kind = r.kind as Exclude<Rule["kind"], "official">;
+  if ((r.kind as string) === "official") throw new Error("公式テーブルのルールは編集できません（有効・無効の切り替えのみ）");
   if (!(kind in KIND_TO_CATEGORY)) throw new Error("種類（kind）が不正です");
   const impact = r.impact as Impact;
   if (!IMPACTS.includes(impact)) throw new Error("影響（impact）が不正です");
@@ -42,7 +43,7 @@ export function validateRule(input: unknown): Rule {
     priority: Number.isFinite(Number(r.priority)) ? Number(r.priority) : 999,
     basis: str(r.basis, "根拠"),
     fix: str(r.fix, "直し方"),
-    source: (["builtin", "ai", "manual"].includes(r.source as string) ? r.source : "manual") as Rule["source"],
+    source: (["builtin", "ai", "manual"].includes(r.source as string) ? r.source : "manual") as "builtin" | "ai" | "manual",
     historyCount: typeof r.historyCount === "number" ? r.historyCount : undefined,
     note: typeof r.note === "string" ? r.note : undefined,
   };
@@ -74,10 +75,18 @@ export function validateRule(input: unknown): Rule {
         mustPrecede: r.mustPrecede === true,
       };
     case "diagnosis": {
-      const d = (r.diagnosis ?? {}) as { names?: string[]; codes?: string[] };
+      const d = (r.diagnosis ?? {}) as { names?: string[]; codes?: string[]; abbrs?: string[] };
       const names = (d.names ?? []).filter((x) => typeof x === "string" && x.trim());
-      if (!names.length && !d.codes?.length) throw new Error("必要な病名を1つ以上指定してください");
-      return { ...base, kind, target: ref(r.target, "対象"), diagnosis: { names, codes: d.codes }, matchTooth: r.matchTooth !== false };
+      const abbrs = (d.abbrs ?? []).filter((x) => typeof x === "string" && x.trim());
+      if (!names.length && !abbrs.length && !d.codes?.length) throw new Error("必要な病名を1つ以上指定してください");
+      return {
+        ...base,
+        kind,
+        target: ref(r.target, "対象"),
+        diagnosis: { names, abbrs, codes: d.codes },
+        matchTooth: r.matchTooth !== false,
+        perTooth: r.perTooth === true,
+      };
     }
     case "comment": {
       const c = (r.comment ?? {}) as { codes?: string[]; keywords?: string[] };
@@ -85,14 +94,16 @@ export function validateRule(input: unknown): Rule {
     }
     case "facility": {
       const mode = r.mode as "required" | "missed";
+      const standard = str(r.standard, "施設基準コード");
+      if (!/^\d{4}(,\d{4})*$/.test(standard.replace(/\s/g, ""))) throw new Error("施設基準は4桁の施設基準コードで指定してください（複数はカンマ区切り）");
       if (mode === "required") {
-        return { ...base, kind, standard: str(r.standard, "施設基準名"), mode, target: ref(r.target, "対象") };
+        return { ...base, kind, standard, mode, target: ref(r.target, "対象") };
       }
       if (mode === "missed") {
         return {
           ...base,
           kind,
-          standard: str(r.standard, "施設基準名"),
+          standard,
           mode,
           when: ref(r.when, "きっかけの項目"),
           expect: ref(r.expect, "取れるはずの項目"),

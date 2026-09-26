@@ -16,7 +16,8 @@ describe("AIに渡す前のマスク", () => {
 
 describe("ルールの検査", () => {
   it("初期ルールはすべて妥当", () => {
-    for (const r of BUILTIN_RULES) expect(() => validateRule(r)).not.toThrow();
+    for (const r of BUILTIN_RULES.filter((x) => x.kind !== "official")) expect(() => validateRule(r)).not.toThrow();
+    expect(() => validateRule(BUILTIN_RULES.find((x) => x.kind === "official"))).toThrow("公式テーブル");
   });
 
   it("不正なルールは日本語で弾く", () => {
@@ -36,7 +37,7 @@ describe("ルールの検査", () => {
       impact: "more",
       basis: "b",
       fix: "f",
-      standard: "S",
+      standard: "1352",
       mode: "missed",
       when: { names: ["初診料"] },
       expect: { names: ["加算"] },

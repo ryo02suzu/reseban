@@ -28,6 +28,8 @@ export function parseClaimHistory(buf: ArrayBuffer | Uint8Array): ClaimHistoryRo
 
 function ruleRefs(rule: Rule) {
   switch (rule.kind) {
+    case "official":
+      return [];
     case "exclusive":
       return [rule.a, rule.b];
     case "facility":

@@ -24,7 +24,7 @@ export interface RuleBase {
   basis: string;
   /** 直し方 */
   fix: string;
-  source: "builtin" | "ai" | "manual";
+  source: "builtin" | "official" | "ai" | "manual";
   /** 過去1年の返戻・査定で該当した件数（実績取込で更新） */
   historyCount?: number;
   note?: string;
@@ -60,12 +60,20 @@ export interface PrerequisiteRule extends RuleBase {
   mustPrecede?: boolean;
 }
 
-/** 病名・部位: target を算定した歯に、指定の病名が付いていること */
+/**
+ * 病名・部位: target を算定したレセプトに、指定の病名があること。
+ * レセ電の歯科診療行為には部位（歯）が記録されないため、部位の突き合わせは
+ *  - matchTooth: コメントの歯式で部位が分かる場合だけ、その歯の病名を確認
+ *  - perTooth:   「1歯につき」の項目で、算定回数が該当病名の歯数を超えていないか確認
+ * で行う。
+ */
 export interface DiagnosisRule extends RuleBase {
   kind: "diagnosis";
   target: ItemRef;
-  diagnosis: { codes?: string[]; names: string[] };
+  /** names は傷病名の部分一致、abbrs は歯科傷病名省略名称（Ｐ、Ｐｕｌ 等）の完全一致 */
+  diagnosis: { codes?: string[]; names: string[]; abbrs?: string[] };
   matchTooth: boolean;
+  perTooth?: boolean;
 }
 
 /** 必須コメント: target にコメントが付いていること */
@@ -76,9 +84,10 @@ export interface CommentRule extends RuleBase {
 }
 
 /**
- * 施設基準:
+ * 施設基準（standard は施設基準コード。カンマ区切りで「いずれか」）:
  *  required = 届出なしで target を算定していたら指摘
  *  missed   = 届出ありなのに、when を算定したレセで expect が無ければ算定漏れ
+ * 「届出が必要な項目を届出なしで算定」は公式テーブル（official/facility）でも点検する。
  */
 export interface FacilityRule extends RuleBase {
   kind: "facility";
@@ -91,7 +100,16 @@ export interface FacilityRule extends RuleBase {
   expectPoints?: number;
 }
 
+/** 支払基金の公式テーブルによる点検（中身はマスターから作る。ここでは有効・無効と優先順位だけ持つ） */
+export type OfficialTable = "limit" | "exclusive" | "age" | "comment" | "facility";
+
+export interface OfficialRule extends RuleBase {
+  kind: "official";
+  table: OfficialTable;
+}
+
 export type Rule =
+  | OfficialRule
   | FrequencyRule
   | ExclusiveRule
   | PrerequisiteRule
@@ -99,7 +117,15 @@ export type Rule =
   | CommentRule
   | FacilityRule;
 
-export const KIND_TO_CATEGORY: Record<Rule["kind"], CheckCategory> = {
+export const OFFICIAL_CATEGORY: Record<OfficialTable, CheckCategory> = {
+  limit: "frequency",
+  exclusive: "exclusive",
+  age: "prerequisite",
+  comment: "comment",
+  facility: "facility",
+};
+
+export const KIND_TO_CATEGORY: Record<Exclude<Rule["kind"], "official">, CheckCategory> = {
   frequency: "frequency",
   exclusive: "exclusive",
   prerequisite: "prerequisite",

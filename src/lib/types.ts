@@ -4,7 +4,7 @@
 export type CheckCategory =
   | "frequency" // 回数・間隔オーバー
   | "exclusive" // 一緒に取れない組み合わせ
-  | "prerequisite" // 前提の検査・管理がない
+  | "prerequisite" // 前提の検査・管理がない／年齢などの算定要件
   | "diagnosis" // 病名・部位と処置のズレ
   | "comment" // 必須コメントの漏れ
   | "facility"; // 施設基準のズレ
@@ -12,7 +12,7 @@ export type CheckCategory =
 export const CATEGORY_LABELS: Record<CheckCategory, string> = {
   frequency: "回数・間隔オーバー",
   exclusive: "併算定不可",
-  prerequisite: "前提の検査・管理なし",
+  prerequisite: "前提・要件の不足",
   diagnosis: "病名・部位のズレ",
   comment: "必須コメント漏れ",
   facility: "施設基準のズレ",
