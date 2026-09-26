@@ -1,16 +1,18 @@
-import { HomeClient } from "@/components/HomeClient";
-import { mockRuns } from "@/lib/mock";
+import { connection } from "next/server";
+import { CheckClient } from "@/components/CheckClient";
+import { listRuns, listStoredMonths } from "@/lib/store";
 
-export default function Home() {
+export default async function CheckPage() {
+  await connection();
   return (
     <>
       <div className="page-head">
         <div>
-          <h1>レセプトチェック</h1>
-          <p>当月分＋過去6ヶ月分のレセ電を入れて「チェック開始」を押すだけ。</p>
+          <h1>チェック（取込）</h1>
+          <p>レセ電ファイルを取り込み、点検を開始します。</p>
         </div>
       </div>
-      <HomeClient initialRuns={mockRuns} />
+      <CheckClient runs={listRuns()} storedMonths={listStoredMonths()} />
     </>
   );
 }

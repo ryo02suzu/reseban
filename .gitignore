@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ローカル保存データ（レセプト由来のため絶対にコミットしない）
+/data/
+!.env.example
