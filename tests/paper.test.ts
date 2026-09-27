@@ -60,3 +60,14 @@ describe("答え合わせ", () => {
     expect(o.rows.map((r) => r.findingId)).toEqual(["a", undefined]);
   });
 });
+
+describe("紙レセプトのコメント", () => {
+  it("摘要を書いてあれば、コメントコードが無くても必須コメント漏れにしない", () => {
+    const base = { no: 3, month: "202609", patientId: "P-3", sex: "1" as const, age: 80, memo: "", diagnoses: [{ teeth: "", name: "P" }] };
+    const without = paperToReceipt({ ...base, acts: [act("20", "訪問診療１（診療所）")] }, master, "salt");
+    const withText = paperToReceipt({ ...base, acts: [{ ...act("20", "訪問診療１（診療所）"), comment: "14:00〜14:30 特養さくら 通院困難" }] }, master, "salt");
+    const rules = BUILTIN_RULES.filter((r) => r.kind === "official" && r.table === "comment");
+    expect(runRules({ current: [without], history: [], rules, filedFacility: DEMO_FILED, master }).length).toBeGreaterThan(0);
+    expect(runRules({ current: [withText], history: [], rules, filedFacility: DEMO_FILED, master })).toEqual([]);
+  });
+});

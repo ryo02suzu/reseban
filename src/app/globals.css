@@ -1605,3 +1605,40 @@ tr.selected td {
   cursor: pointer;
   text-decoration: underline;
 }
+
+/* ---------- はじめにやること ---------- */
+.getting-started {
+  margin-bottom: 20px;
+}
+
+.getting-started h2 {
+  margin-bottom: 10px;
+}
+
+.getting-started ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.getting-started li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.getting-started li svg {
+  color: var(--muted);
+  flex: none;
+}
+
+.getting-started li.done {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.getting-started li.done svg {
+  color: var(--more);
+}

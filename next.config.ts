@@ -26,7 +26,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // Docker イメージ用（Dockerfile で NEXT_OUTPUT=standalone）。Vercel・院内PC（npm run local）では通常のビルド
+  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
   poweredByHeader: false,
   serverExternalPackages: ["@electric-sql/pglite", "pg"],
   // マイグレーション（drizzle/）は実行時に読むため、サーバーレス環境（Vercel 等）にも同梱する

@@ -204,6 +204,8 @@ function checkComment({ rec, master }: OfficialContext): OfficialDraft[] {
   for (const [code, acts] of byCode(rec.acts)) {
     const groups = master.comments.get(code);
     if (!groups) continue;
+    // 紙レセプトの摘要は自由記載（コメントコードが無い）ため、書いてあれば内容までは判定しない
+    if (acts.some((a) => a.comments.some((c) => !c.code && c.text))) continue;
     const missing: string[] = [];
     // 診療月の末日時点で有効な記載要件だけを見る
     const day = `${rec.month}31`;

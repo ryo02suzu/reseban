@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "create-operator": "node scripts/create-operator.mjs",
-    "build:demo-master": "tsx scripts/build-demo-master.ts"
+    "build:demo-master": "tsx scripts/build-demo-master.ts",
+    "local": "node scripts/local.mjs"
   },
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.33.8",
