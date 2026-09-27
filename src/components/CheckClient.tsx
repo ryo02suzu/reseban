@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Check, FileText, FlaskConical, Info, Play, ShieldCheck, Trash2, X, IdCard, ArrowRight } from "lucide-react";
 import type { AuditRunListItem } from "@/lib/types";
-import { decodeUke, detectMonth } from "@/lib/uke/text";
+import { decodeUke, detectFileInfo, PAYER_LABELS } from "@/lib/uke/text";
 import { monthsBack } from "@/lib/rules/engine";
 import { formatDateTime, formatMonth } from "@/lib/format";
 import { api, errorMessage } from "@/lib/client";
@@ -13,15 +13,40 @@ import { api, errorMessage } from "@/lib/client";
 interface Picked {
   file: File;
   month?: string;
+  /** 審査支払機関（"1" 社保／"2" 国保） */
+  payer?: string;
 }
 
 async function pick(file: File): Promise<Picked> {
   try {
-    const month = detectMonth(decodeUke(await file.arrayBuffer()));
-    return { file, month };
+    const info = detectFileInfo(decodeUke(await file.arrayBuffer()));
+    return { file, month: info.month, payer: info.payer };
   } catch {
     return { file };
   }
+}
+
+const sameFile = (a: File, b: File) => a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
+
+/** 選ばれたファイルを、最も新しい月＝当月、それより前＝過去分に振り分ける */
+function place(current: Picked[], history: Picked[]): { current: Picked[]; history: Picked[]; moved: number } {
+  const all = [...current, ...history];
+  const latest = current.map((p) => p.month).filter(Boolean).sort().at(-1);
+  if (!latest) return { current, history, moved: 0 };
+  const cur = all.filter((p) => p.month === latest);
+  const moved = current.filter((p) => p.month && p.month !== latest).length;
+  const hist = all.filter((p) => p.month !== latest);
+  return { current: cur, history: hist, moved };
+}
+
+function payersOf(files: Picked[]) {
+  const names = [...new Set(files.map((f) => (f.payer ? PAYER_LABELS[f.payer] : undefined)).filter(Boolean))];
+  return names.length ? `（${names.join("・")}）` : "";
+}
+
+function PayerBadge({ payer }: { payer?: string }) {
+  if (!payer || !PAYER_LABELS[payer]) return null;
+  return <span className="badge neutral">{PAYER_LABELS[payer]}</span>;
 }
 
 function thisMonth() {
@@ -44,7 +69,8 @@ export function CheckClient({
 }) {
   const router = useRouter();
   const [runs, setRuns] = useState(initialRuns);
-  const [current, setCurrent] = useState<Picked | null>(null);
+  const [current, setCurrent] = useState<Picked[]>([]);
+  const [note, setNote] = useState<string>();
   const [history, setHistory] = useState<Picked[]>([]);
   const [busy, setBusy] = useState<"run" | "demo" | null>(null);
   const [error, setError] = useState<string>();
@@ -52,29 +78,43 @@ export function CheckClient({
   const currentInput = useRef<HTMLInputElement>(null);
   const historyInput = useRef<HTMLInputElement>(null);
 
-  const base = current?.month ?? thisMonth();
+  const currentMonth = current.map((p) => p.month).filter(Boolean).sort().at(-1);
+  const base = currentMonth ?? thisMonth();
   const pastMonths = Array.from({ length: 6 }, (_, i) => monthsBack(base, 6 - i));
   const covered = new Set([...storedMonths, ...history.map((h) => h.month).filter(Boolean)] as string[]);
   const okCount = pastMonths.filter((m) => covered.has(m)).length;
+  const historyGroups = [
+    ...history.reduce((m, h) => m.set(h.month ?? "", [...(m.get(h.month ?? "") ?? []), h]), new Map<string, Picked[]>()),
+  ].sort(([a], [b]) => a.localeCompare(b));
 
-  const setCurrentFile = async (f?: File) => {
-    if (!f) return;
+  const addCurrent = async (files: File[]) => {
+    if (!files.length) return;
     setError(undefined);
-    setCurrent(await pick(f));
+    const picked = await Promise.all(files.map(pick));
+    const fresh = picked.filter((p) => ![...current, ...history].some((x) => sameFile(x.file, p.file)));
+    const r = place([...current, ...fresh], history);
+    setCurrent(r.current);
+    setHistory(r.history.slice(-40));
+    setNote(r.moved ? `当月より前の月のファイル${r.moved}件は、過去分に入れました。` : undefined);
   };
 
   const addHistory = async (files: File[]) => {
     const picked = await Promise.all(files.map(pick));
-    setHistory((h) => [...h, ...picked].slice(-12));
+    const fresh = picked.filter((p) => ![...current, ...history].some((x) => sameFile(x.file, p.file)));
+    // 当月と同じ月のファイル（社保・国保のもう片方など）は当月に入れる
+    const same = fresh.filter((p) => currentMonth && p.month === currentMonth);
+    setCurrent((c) => [...c, ...same]);
+    setHistory((h) => [...h, ...fresh.filter((p) => !same.includes(p))].slice(-40));
+    setNote(same.length ? `当月と同じ月のファイル${same.length}件は、当月に入れました。` : undefined);
   };
 
   const start = async () => {
-    if (!current) return;
+    if (!current.length) return;
     setBusy("run");
     setError(undefined);
     try {
       const fd = new FormData();
-      fd.append("current", current.file);
+      current.forEach((c) => fd.append("current", c.file));
       history.forEach((h) => fd.append("history", h.file));
       const { id } = await api<{ id: string }>("/api/audits", { method: "POST", body: fd });
       router.push(`/report/${id}`);
@@ -113,7 +153,9 @@ export function CheckClient({
           {/* ① 当月 */}
           <div className="step-title">
             <span className="step-num">1</span>
-            <h2>当月のファイルを選ぶ</h2>
+            <h2>
+              当月のファイルを選ぶ <span className="muted" style={{ fontWeight: 400, fontSize: 14 }}>（社保・国保で分かれている場合は両方）</span>
+            </h2>
           </div>
           <div className="grid grid-2" style={{ gap: 16 }}>
             <div
@@ -126,7 +168,7 @@ export function CheckClient({
               onDrop={(e) => {
                 e.preventDefault();
                 setDrag(false);
-                setCurrentFile(e.dataTransfer.files[0]);
+                addCurrent(Array.from(e.dataTransfer.files));
               }}
             >
               <FileText size={32} color="var(--primary)" aria-hidden />
@@ -144,27 +186,38 @@ export function CheckClient({
                 ref={currentInput}
                 type="file"
                 accept=".UKE,.uke"
+                multiple
                 hidden
                 onChange={(e) => {
-                  setCurrentFile(e.target.files?.[0]);
+                  addCurrent(Array.from(e.target.files ?? []));
                   e.target.value = "";
                 }}
               />
             </div>
-            {current ? (
-              <div className="file-card">
-                <FileText size={28} color="var(--primary)" aria-hidden />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="name">{current.file.name}</div>
-                  <div className="muted small">
-                    {fileSize(current.file.size)} ・ {formatDateTime(new Date(current.file.lastModified).toISOString())}
+            {current.length ? (
+              <div className="grid" style={{ gap: 8, alignContent: "start" }}>
+                {current.map((c, i) => (
+                  <div className="file-card" key={`${c.file.name}-${i}`}>
+                    <FileText size={28} color="var(--primary)" aria-hidden />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="name">{c.file.name}</div>
+                      {c.month ? (
+                        <div className="row" style={{ gap: 6, margin: "4px 0" }}>
+                          <span className="badge month">{formatMonth(c.month)}分</span>
+                          <PayerBadge payer={c.payer} />
+                        </div>
+                      ) : (
+                        <div className="small" style={{ color: "var(--henrei)", marginTop: 4 }}>レセ電ファイルとして読めませんでした</div>
+                      )}
+                      <div className="muted small">
+                        {fileSize(c.file.size)} ・ {formatDateTime(new Date(c.file.lastModified).toISOString())}
+                      </div>
+                    </div>
+                    <button type="button" className="icon-btn" aria-label="ファイルを外す" onClick={() => setCurrent((x) => x.filter((_, j) => j !== i))}>
+                      <X size={16} />
+                    </button>
                   </div>
-                  {!current.month && <div className="small" style={{ color: "var(--henrei)", marginTop: 4 }}>レセ電ファイルとして読めませんでした</div>}
-                </div>
-                {current.month && <span className="badge month">{formatMonth(current.month)}分</span>}
-                <button type="button" className="icon-btn" aria-label="ファイルを外す" onClick={() => setCurrent(null)}>
-                  <X size={16} />
-                </button>
+                ))}
               </div>
             ) : (
               <div className="file-card" style={{ alignItems: "center", justifyContent: "center", color: "var(--muted)" }}>
@@ -172,6 +225,11 @@ export function CheckClient({
               </div>
             )}
           </div>
+          {note && (
+            <p className="notice info" style={{ margin: "12px 0 0" }}>
+              {note}
+            </p>
+          )}
 
           <hr className="divider" />
 
@@ -185,7 +243,7 @@ export function CheckClient({
                 </h2>
               </div>
               <p className="muted small" style={{ margin: "0 0 10px 42px" }}>
-                過去6ヶ月分を入れてください。一度入れた月は保存され、次回からは不要です。
+                過去6ヶ月分を入れてください（まとめて選んでOK）。一度入れた月は保存され、次回からは不要です。
               </p>
               <div style={{ marginLeft: 42 }}>
                 <button type="button" className="btn" style={{ minWidth: 170 }} onClick={() => historyInput.current?.click()}>
@@ -204,15 +262,16 @@ export function CheckClient({
                 />
                 {history.length > 0 && (
                   <div className="file-chips">
-                    {history.map((h, i) => (
-                      <span className="file-chip" key={`${h.file.name}-${i}`}>
-                        {h.month ? formatMonth(h.month) : "年月不明"}・{h.file.name}
+                    {historyGroups.map(([m, files]) => (
+                      <span className="file-chip" key={m} title={files.map((h) => h.file.name).join("\n")}>
+                        {m ? formatMonth(m) : "年月不明"}
+                        {payersOf(files)}・{files.length}ファイル
                         <button
                           type="button"
                           className="icon-btn"
                           style={{ padding: 2 }}
-                          aria-label="外す"
-                          onClick={() => setHistory((x) => x.filter((_, j) => j !== i))}
+                          aria-label={`${m ? formatMonth(m) : "年月不明"}のファイルを外す`}
+                          onClick={() => setHistory((x) => x.filter((h) => (h.month ?? "") !== m))}
                         >
                           <X size={12} />
                         </button>
@@ -257,12 +316,12 @@ export function CheckClient({
             </div>
             <span className="spacer" />
             <div style={{ textAlign: "right" }}>
-              <button type="button" className="btn btn-primary btn-lg" style={{ minWidth: 240 }} disabled={!current?.month || !!busy} onClick={start}>
+              <button type="button" className="btn btn-primary btn-lg" style={{ minWidth: 240 }} disabled={!currentMonth || !!busy} onClick={start}>
                 <Play size={18} fill="currentColor" aria-hidden />
                 {busy === "run" ? "チェック中…" : "チェック開始"}
               </button>
-              {!current && <div className="muted small" style={{ marginTop: 6 }}>※ 当月のファイルが選択されていません。</div>}
-              {current && !current.month && <div className="small" style={{ marginTop: 6, color: "var(--henrei)" }}>※ レセ電ファイル（.UKE）を選んでください。</div>}
+              {!current.length && <div className="muted small" style={{ marginTop: 6 }}>※ 当月のファイルが選択されていません。</div>}
+              {current.length > 0 && !currentMonth && <div className="small" style={{ marginTop: 6, color: "var(--henrei)" }}>※ レセ電ファイル（RECEIPTS.UKE）を選んでください。</div>}
             </div>
           </div>
         </section>

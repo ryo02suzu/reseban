@@ -61,6 +61,8 @@ export function parseUke(text: string, opts: ParseOptions): ParsedFile {
   const M = opts.master;
   const lines = text.replace(/\x1a/g, "").split(/\r?\n/);
   const file: ParsedFile = {
+    payer: "",
+    volume: "",
     clinicCode: "",
     clinicName: "",
     billingMonth: "",
@@ -74,6 +76,7 @@ export function parseUke(text: string, opts: ParseOptions): ParsedFile {
 
   let cur: ParsedReceipt | null = null;
   let irTodokede: string[] = [];
+  let irPayer = "";
   /** RE の生年月日・カルテ番号（患者キーを作ったら捨てる） */
   let birth = "";
   let insurer: string[] = [];
@@ -113,6 +116,8 @@ export function parseUke(text: string, opts: ParseOptions): ParsedFile {
       case "UK": {
         const L = LAYOUT.UK;
         if (f[L.tensuHyo]?.trim() !== "3") file.warnings.push("歯科のレセ電ではありません（受付情報の点数表が「3：歯科」ではありません）");
+        file.payer = f[L.payer]?.trim() ?? "";
+        file.volume = f[L.volume]?.trim() ?? "";
         file.clinicCode = f[L.clinicCode]?.trim() ?? "";
         file.clinicName = f[L.clinicName]?.trim() ?? "";
         file.billingMonth = toSeireki(f[L.billingMonth]);
@@ -126,6 +131,8 @@ export function parseUke(text: string, opts: ParseOptions): ParsedFile {
         file.clinicCode ||= f[L.clinicCode]?.trim() ?? "";
         file.billingMonth ||= toSeireki(f[L.billingMonth]);
         irTodokede = chunks(f[L.todokede], 2);
+        irPayer = f[L.payer]?.trim() ?? "";
+        file.payer ||= irPayer;
         break;
       }
       case "RE": {
@@ -136,6 +143,7 @@ export function parseUke(text: string, opts: ParseOptions): ParsedFile {
         birth = toSeireki(f[L.birth]);
         cur = {
           receiptNo: f[L.receiptNo]?.trim() ?? "",
+          payer: irPayer || file.payer,
           month,
           receiptType,
           inpatient: /^\d{3}[13579]$/.test(receiptType),
@@ -277,7 +285,12 @@ export function parseUke(text: string, opts: ParseOptions): ParsedFile {
   for (const r of file.receipts) counts.set(r.month, (counts.get(r.month) ?? 0) + 1);
   file.month = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
   if (file.receipts.length === 0) file.warnings.push("レセプト（REレコード）が見つかりませんでした");
-  if (counts.size > 1) file.warnings.push(`複数の診療年月のレセプトが入っています（${[...counts.keys()].join("、")}）`);
+  if (counts.size > 1) {
+    const others = [...counts].filter(([m]) => m !== file.month);
+    file.warnings.push(
+      `月遅れ請求など、${others.map(([m, n]) => `${m.slice(0, 4)}年${Number(m.slice(4))}月診療分${n}件`).join("・")}が含まれています（診療月ごとに判定しています）`,
+    );
+  }
   file.unknownCodes = [...unknown].slice(0, 50);
   if (unknown.size) {
     file.warnings.push(`マスターに無いコードが${unknown.size}件あります（例：${[...unknown].slice(0, 3).join("、")}）。マスターが古い可能性があります。`);

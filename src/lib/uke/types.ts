@@ -1,6 +1,8 @@
 /** 解析済みレセプト。氏名・カナ氏名・保険証の記号番号・生年月日は含まない。 */
 export interface ParsedReceipt {
   receiptNo: string;
+  /** 審査支払機関（"1" 支払基金／"2" 国保連合会）。レセプト番号は機関ごとに振られる */
+  payer?: string;
   /** 診療年月 YYYYMM */
   month: string;
   /** レセプト種別コード（例 3112） */
@@ -60,6 +62,10 @@ export interface ActComment {
 }
 
 export interface ParsedFile {
+  /** 審査支払機関（"1" 支払基金／"2" 国保連合会） */
+  payer: string;
+  /** マルチボリューム識別情報 */
+  volume: string;
   clinicCode: string;
   clinicName: string;
   billingMonth: string;

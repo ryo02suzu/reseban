@@ -104,7 +104,7 @@ export function runRules(input: EngineInput): Finding[] {
       drafts.forEach((d, i) => {
         findings.push({
           ...d,
-          id: `${rule.id}:${rec.receiptNo}:${d.itemCode ?? ""}:${i}`,
+          id: `${rule.id}:${rec.payer ?? ""}${rec.receiptNo}:${d.itemCode ?? ""}:${i}`,
           ruleId: rule.id,
           ruleName: rule.name,
           category: rule.category as CheckCategory,
@@ -113,6 +113,7 @@ export function runRules(input: EngineInput): Finding[] {
           fix: rule.fix,
           karteNo: rec.karteNo,
           receiptNo: rec.receiptNo,
+          ...(rec.payer ? { payer: rec.payer } : {}),
           month: rec.month,
           amountYen: Math.round(d.points * 10),
           status: "open",
@@ -384,11 +385,14 @@ function checkFacility(rule: FacilityRule, rec: ParsedReceipt, ctx: Ctx): Draft[
 }
 
 // ---------- サマリー ----------
-export function summarize(findings: Pick<Finding, "status" | "category" | "impact" | "month" | "receiptNo" | "amountYen">[], receiptCount: number): AuditSummary {
+export function summarize(
+  findings: Pick<Finding, "status" | "category" | "impact" | "month" | "receiptNo" | "payer" | "amountYen">[],
+  receiptCount: number,
+): AuditSummary {
   const active = findings.filter((f) => f.status !== "ignored");
   const byCategory = Object.fromEntries(CATEGORY_ORDER.map((c) => [c, 0])) as AuditSummary["byCategory"];
   for (const f of active) byCategory[f.category]++;
-  const henreiReceipts = new Set(active.filter((f) => f.impact === "henrei").map((f) => `${f.month}:${f.receiptNo}`));
+  const henreiReceipts = new Set(active.filter((f) => f.impact === "henrei").map((f) => `${f.month}:${f.payer ?? ""}:${f.receiptNo}`));
   return {
     receiptCount,
     henreiCount: henreiReceipts.size,

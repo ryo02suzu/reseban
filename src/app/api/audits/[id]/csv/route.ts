@@ -1,3 +1,4 @@
+import { receiptLabel } from "@/lib/uke/text";
 import { handle, notFound } from "@/lib/api";
 import { actorOf, requireClinicApi } from "@/lib/auth";
 import { logAction } from "@/lib/repo/core";
@@ -28,7 +29,7 @@ export async function GET(request: Request, { params }: Ctx) {
         CATEGORY_LABELS[f.category],
         STATUS_LABELS[f.status],
         f.karteNo,
-        f.receiptNo,
+        receiptLabel(f.receiptNo, f.payer),
         f.month,
         f.date ?? "",
         f.tooth ?? "",

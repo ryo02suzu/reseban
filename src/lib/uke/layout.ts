@@ -8,15 +8,20 @@
 export const LAYOUT = {
   /** 受付情報（ファイル先頭） */
   UK: {
+    /** 審査支払機関（1：支払基金、2：国保連合会） */
+    payer: 1,
     tensuHyo: 3,
     clinicCode: 4,
     clinicName: 6,
     billingMonth: 7,
     /** 施設基準届出コード（2桁ずつ連結） */
     todokede: 8,
+    /** マルチボリューム識別情報（00, 01, …, 99） */
+    volume: 9,
   },
   /** 医療機関情報（レセプトごとの先頭） */
   IR: {
+    payer: 1,
     tensuHyo: 3,
     clinicCode: 4,
     billingMonth: 6,

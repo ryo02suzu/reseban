@@ -57,6 +57,8 @@ export interface Finding {
   /** 医療機関内で患者を探すための番号（氏名は保持しない） */
   karteNo: string;
   receiptNo: string;
+  /** 審査支払機関（"1" 社保／"2" 国保）。レセプト番号は機関ごとに振られる */
+  payer?: string;
   /** 診療年月 YYYYMM */
   month: string;
   /** 対象日（分かる場合）YYYY-MM-DD */
@@ -79,6 +81,7 @@ export interface AiSuggestion {
   id: string;
   karteNo: string;
   receiptNo: string;
+  payer?: string;
   itemName: string;
   estimatedPoints: number;
   rationale: string;

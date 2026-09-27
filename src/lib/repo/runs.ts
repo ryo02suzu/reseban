@@ -23,6 +23,17 @@ export async function saveMonthReceipts(clinicId: string, month: string, receipt
     });
 }
 
+/**
+ * 月のレセプトを、取り込んだ審査支払機関（社保・国保）の分だけ入れ替えて保存する。
+ * 社保と国保を別々に取り込んでも、もう片方は消えない。
+ */
+export async function mergeMonthReceipts(clinicId: string, month: string, receipts: ParsedReceipt[]) {
+  const payers = new Set(receipts.map((r) => r.payer ?? ""));
+  const existing = (await getMonthReceipts(clinicId, month)) ?? [];
+  const kept = existing.filter((r) => !payers.has(r.payer ?? ""));
+  await saveMonthReceipts(clinicId, month, [...kept, ...receipts]);
+}
+
 export async function getMonthReceipts(clinicId: string, month: string): Promise<ParsedReceipt[] | null> {
   const db = await getDb();
   const [r] = await db

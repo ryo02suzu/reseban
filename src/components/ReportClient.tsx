@@ -17,6 +17,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { receiptLabel } from "@/lib/uke/text";
 import type { AiSuggestion, AuditRun, CheckCategory, Finding, FindingStatus, Impact } from "@/lib/types";
 import { CATEGORY_LABELS, CATEGORY_ORDER, IMPACT_LABELS, STATUS_LABELS } from "@/lib/types";
 import { formatMonth } from "@/lib/format";
@@ -437,7 +438,7 @@ function FindingCard({
       <div className="finding-title">{f.itemName || f.ruleName}</div>
       <div className="meta">
         <span>カルテ番号<b>{f.karteNo || "—"}</b></span>
-        <span>レセ番号<b>{f.receiptNo}</b></span>
+        <span>レセ番号<b>{receiptLabel(f.receiptNo, f.payer)}</b></span>
         <span>診療日<b>{fmtDate(f.date)}</b></span>
         {f.tooth && <span>部位<b>{f.tooth}</b></span>}
       </div>
@@ -504,7 +505,7 @@ function Detail({
       </div>
       <div className="meta">
         <span>カルテ番号<b>{f.karteNo || "—"}</b></span>
-        <span>レセ番号<b>{f.receiptNo}</b></span>
+        <span>レセ番号<b>{receiptLabel(f.receiptNo, f.payer)}</b></span>
         <span>診療日<b>{fmtDate(f.date)}</b></span>
         {f.tooth && <span>部位<b>{f.tooth}</b></span>}
         <span>点数<b>{f.points.toLocaleString()}点</b></span>

@@ -1,7 +1,8 @@
 import "server-only";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { AuditRun, Finding } from "./types";
 import { parseUke, decodeUke } from "./uke/parser";
+import { PAYER_LABELS } from "./uke/text";
 import type { ParsedFile, ParsedReceipt } from "./uke/types";
 import { runRules, summarize, monthsBack } from "./rules/engine";
 import { buildIndex, type MasterIndex } from "./master/bundle";
@@ -9,7 +10,7 @@ import { DEMO_FILED, DEMO_MASTER, DEMO_TARGET, demoUke } from "./demo";
 import { DEMO_MODE, DEMO_RUN_ID } from "./demo/mode";
 import { getMasterIndex, updateClinic, type Clinic } from "./repo/core";
 import { listClinicRules } from "./repo/rules";
-import { getMonthReceipts, getRun, saveMonthReceipts, saveRun } from "./repo/runs";
+import { getMonthReceipts, getRun, mergeMonthReceipts, saveRun } from "./repo/runs";
 
 export const HISTORY_MONTHS = 6;
 export const MAX_UPLOAD_BYTES = 30 * 1024 * 1024;
@@ -38,45 +39,106 @@ function masterWarnings(m: MasterIndex): string[] {
   return w;
 }
 
-export async function runAudit(clinic: Clinic, input: { current: Uint8Array; history: Uint8Array[] }, userId: string): Promise<AuditRun> {
+/**
+ * レセ電を取り込んでチェックする。
+ * 1か月分が社保（支払基金）・国保（国保連）やマルチボリュームで複数ファイルに分かれていても、まとめて受け付ける。
+ * 当月として渡されたファイルのうち最も新しい月を当月とし、それより前の月のファイルは過去分として扱う。
+ */
+export async function runAudit(clinic: Clinic, input: { current: Uint8Array[]; history: Uint8Array[] }, userId: string): Promise<AuditRun> {
   const master = await getMasterIndex();
-  const parse = (buf: Uint8Array) => parseUke(decodeUke(buf), { salt: clinic.salt, master });
+  const warnings: string[] = [...masterWarnings(master)];
 
-  const cur = parse(input.current);
-  if (!cur.receipts.length) throw new Error("当月ファイルにレセプトが見つかりませんでした。レセ電ファイル（RECEIPTS.UKE）か確認してください。");
-  if (clinic.code && cur.clinicCode && clinic.code !== cur.clinicCode) {
-    throw new Error(`このファイルは別の医療機関（コード${cur.clinicCode}）のものです。登録されている医療機関コードは${clinic.code}です。`);
+  // 同じファイルが2回選ばれていたら1回分にする
+  const seen = new Set<string>();
+  const parseAll = (list: Uint8Array[]) => {
+    const out: ParsedFile[] = [];
+    for (const buf of list) {
+      const h = createHash("sha256").update(buf).digest("hex");
+      if (seen.has(h)) {
+        warnings.push("同じファイルが2回選ばれていたので、1回分だけ取り込みました");
+        continue;
+      }
+      seen.add(h);
+      out.push(parseUke(decodeUke(buf), { salt: clinic.salt, master }));
+    }
+    return out;
+  };
+  const curFiles = parseAll(input.current).filter((f) => f.receipts.length);
+  const histFiles = parseAll(input.history);
+  if (!curFiles.length) throw new Error("当月ファイルにレセプトが見つかりませんでした。レセ電ファイル（RECEIPTS.UKE）か確認してください。");
+
+  // 医療機関コードの確認（登録済みのコード、なければ当月ファイルのコード）
+  const code = clinic.code || curFiles.find((f) => f.clinicCode)?.clinicCode || "";
+  const own = (f: ParsedFile) => {
+    if (code && f.clinicCode && f.clinicCode !== code) {
+      if (!clinic.code) return false;
+      throw new Error(`このファイルは別の医療機関（コード${f.clinicCode}）のものです。登録されている医療機関コードは${clinic.code}です。`);
+    }
+    return true;
+  };
+  for (const f of curFiles) {
+    if (!own(f)) throw new Error("当月のファイルに、医療機関コードの違うものが混ざっています。");
   }
-  const code = clinic.code || cur.clinicCode;
-  const target = cur.month;
-  const warnings = [...masterWarnings(master), ...cur.warnings];
+
+  // 当月＝当月ファイルの中で最も新しい診療年月。どちらの欄で選ばれても、その月のファイルは当月として扱う
+  const target = curFiles.map((f) => f.month).sort().at(-1)!;
+  const current: ParsedFile[] = [];
+  const past: ParsedFile[] = [];
+  for (const f of curFiles) {
+    if (f.month === target) current.push(f);
+    else {
+      warnings.push(`当月として選ばれたファイルのうち、${formatYm(f.month)}分のものは過去分として扱いました`);
+      past.push(f);
+    }
+  }
+  for (const f of histFiles) {
+    const sameClinic = !code || !f.clinicCode || f.clinicCode === code;
+    if (f.month === target && f.receipts.length && sameClinic) current.push(f);
+    else past.push(f);
+  }
+  for (const f of current) warnings.push(...f.warnings.map((w) => `当月（${payerName(f)}）：${w}`));
+
+  // 過去分を月ごとにまとめる（社保・国保・ボリューム違いを合わせる）
   const byMonth = new Map<string, ParsedReceipt[]>();
-  for (const buf of input.history) {
-    const f = parse(buf);
+  for (const f of past) {
+    if (!f.receipts.length) continue;
     if (code && f.clinicCode && f.clinicCode !== code) {
       warnings.push(`過去分に別の医療機関のファイルが入っていたので除外しました（コード${f.clinicCode}）`);
       continue;
     }
-    warnings.push(...f.warnings.map((w) => `過去分（${f.month}）：${w}`));
-    if (f.month === target) {
-      warnings.push("過去分に当月と同じ月のファイルが入っていたので除外しました");
-      continue;
-    }
     if (f.month > target) {
-      warnings.push(`過去分に当月より新しい月（${f.month}）のファイルが入っていたので除外しました`);
+      warnings.push(`過去分に当月より新しい月（${formatYm(f.month)}）のファイルが入っていたので除外しました`);
       continue;
     }
-    byMonth.set(f.month, f.receipts);
-    await saveMonthReceipts(clinic.id, f.month, f.receipts);
+    warnings.push(...f.warnings.map((w) => `過去分（${formatYm(f.month)}・${payerName(f)}）：${w}`));
+    byMonth.set(f.month, [...(byMonth.get(f.month) ?? []), ...f.receipts]);
   }
-  await saveMonthReceipts(clinic.id, target, cur.receipts);
+  for (const [m, receipts] of byMonth) await mergeMonthReceipts(clinic.id, m, receipts);
 
-  if (!clinic.code && cur.clinicCode) {
-    await updateClinic(clinic.id, { code: cur.clinicCode });
+  const curReceipts = current.flatMap((f) => f.receipts);
+  await mergeMonthReceipts(clinic.id, target, curReceipts);
+  // 当月は、先に別ファイルで取り込んだもう片方（社保／国保）も合わせてチェックする
+  const allCurrent = (await getMonthReceipts(clinic.id, target)) ?? curReceipts;
+  const payers = [...new Set(allCurrent.map((r) => r.payer ?? ""))].filter(Boolean);
+  if (payers.length === 1) {
+    const other = payers[0] === "1" ? "国保" : "社保";
+    warnings.push(`当月は${PAYER_LABELS[payers[0]] ?? ""}のファイルだけです。${other}のレセプトもある場合は、一緒に取り込むとより正確にチェックできます。`);
   }
 
+  if (!clinic.code && code) await updateClinic(clinic.id, { code });
+
+  const cur: ParsedFile = {
+    ...current[0],
+    month: target,
+    receipts: allCurrent,
+    warnings: [],
+    unknownCodes: [...new Set(current.flatMap((f) => f.unknownCodes))],
+  };
   return finish({ clinic, cur, target, byMonth, warnings, master, filed: clinic.facilityCodes, demo: false, userId });
 }
+
+const formatYm = (ym: string) => `${ym.slice(0, 4)}年${Number(ym.slice(4, 6))}月`;
+const payerName = (f: ParsedFile) => PAYER_LABELS[f.payer] ?? "審査支払機関不明";
 
 export async function runDemoAudit(clinic: Clinic, userId: string, previous?: AuditRun): Promise<AuditRun> {
   const master = getDemoIndex();
@@ -113,7 +175,7 @@ export async function rerunAudit(clinic: Clinic, id: string, userId: string): Pr
   const master = await getMasterIndex();
   return finish({
     clinic,
-    cur: { clinicCode: clinic.code, clinicName: previous.clinicName, billingMonth: "", month: previous.targetMonth, todokede: [], receipts, warnings: [], unknownCodes: [] },
+    cur: { payer: "", volume: "", clinicCode: clinic.code, clinicName: previous.clinicName, billingMonth: "", month: previous.targetMonth, todokede: [], receipts, warnings: [], unknownCodes: [] },
     target: previous.targetMonth,
     byMonth: new Map(),
     warnings: masterWarnings(master),

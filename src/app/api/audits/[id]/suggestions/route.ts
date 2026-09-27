@@ -24,6 +24,7 @@ export async function POST(_: Request, { params }: Ctx) {
       id: randomUUID().slice(0, 8),
       karteNo: x.receipt.karteNo,
       receiptNo: x.receipt.receiptNo,
+      ...(x.receipt.payer ? { payer: x.receipt.payer } : {}),
       itemName: x.itemName,
       estimatedPoints: x.estimatedPoints,
       rationale: x.rationale,
