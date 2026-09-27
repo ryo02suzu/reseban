@@ -8,6 +8,7 @@ import { randomToken, sha256 } from "./security/crypto";
 import { getClinic, getUser, type Actor, type Clinic, type Role, type User } from "./repo/core";
 import { HttpError } from "./api";
 import { DEMO_MODE } from "./demo/mode";
+import { signDemoToken, verifyDemoToken } from "./demo/session";
 import { TERMS_VERSION } from "./terms";
 
 export const SESSION_COOKIE = "rb_session";
@@ -34,14 +35,16 @@ export async function clientIp(): Promise<string> {
 }
 
 export async function createSession(userId: string, pending2fa: boolean) {
-  const token = randomToken(32);
+  const expiresAt = Date.now() + ABSOLUTE_HOURS * 3600_000;
+  // デモ環境は複数インスタンスで同じログインを復元できるよう署名付きにする（2段階認証は使えない）
+  const token = DEMO_MODE && !pending2fa ? signDemoToken({ userId, expiresAt }, randomToken(8)) : randomToken(32);
   const h = await headers();
   const db = await getDb();
   await db.insert(sessions).values({
     id: sha256(token),
     userId,
     pending2fa,
-    expiresAt: new Date(Date.now() + ABSOLUTE_HOURS * 3600_000),
+    expiresAt: new Date(expiresAt),
     ip: await clientIp(),
     userAgent: (h.get("user-agent") ?? "").slice(0, 300),
   });
@@ -83,7 +86,8 @@ export async function getSession(): Promise<Session | null> {
   if (!token) return null;
   const db = await getDb();
   const id = sha256(token);
-  const [s] = await db.select().from(sessions).where(eq(sessions.id, id));
+  let s: typeof sessions.$inferSelect | undefined = (await db.select().from(sessions).where(eq(sessions.id, id)))[0];
+  if (!s && DEMO_MODE) s = await restoreDemoSession(token, id);
   if (!s) return null;
   const now = Date.now();
   if (s.expiresAt.getTime() < now || now - s.lastSeenAt.getTime() > IDLE_MINUTES * 60_000) {
@@ -105,6 +109,19 @@ export async function getSession(): Promise<Session | null> {
     needs2faSetup: mustHave2fa && !user.totpEnabled,
     ip: s.ip,
   };
+}
+
+/** デモ環境：別インスタンスで作られたログインを、署名を確かめて復元する */
+async function restoreDemoSession(token: string, id: string) {
+  const t = verifyDemoToken(token);
+  if (!t) return undefined;
+  const db = await getDb();
+  const [row] = await db
+    .insert(sessions)
+    .values({ id, userId: t.userId, pending2fa: false, expiresAt: new Date(t.expiresAt) })
+    .onConflictDoNothing()
+    .returning();
+  return row ?? (await db.select().from(sessions).where(eq(sessions.id, id)))[0];
 }
 
 export function actorOf(s: Session): Actor {

@@ -1,4 +1,5 @@
 import "server-only";
+import { DEMO_LOCKED_MESSAGE, DEMO_MODE } from "./demo/mode";
 
 /** Route Handler 共通：例外を日本語メッセージの JSON にする */
 export async function handle<T>(fn: () => Promise<T> | T): Promise<Response> {
@@ -26,6 +27,11 @@ export class HttpError extends Error {
   ) {
     super(message);
   }
+}
+
+/** デモ環境で、他の閲覧者の見え方を壊す操作を止める */
+export function forbidInDemo() {
+  if (DEMO_MODE) throw new HttpError(400, DEMO_LOCKED_MESSAGE);
 }
 
 export function notFound(what = "データ"): never {

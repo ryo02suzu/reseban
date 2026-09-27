@@ -6,6 +6,7 @@ import type { ParsedFile, ParsedReceipt } from "./uke/types";
 import { runRules, summarize, monthsBack } from "./rules/engine";
 import { buildIndex, type MasterIndex } from "./master/bundle";
 import { DEMO_FILED, DEMO_MASTER, DEMO_TARGET, demoUke } from "./demo";
+import { DEMO_MODE, DEMO_RUN_ID } from "./demo/mode";
 import { getMasterIndex, updateClinic, type Clinic } from "./repo/core";
 import { listClinicRules } from "./repo/rules";
 import { getMonthReceipts, getRun, saveMonthReceipts, saveRun } from "./repo/runs";
@@ -172,7 +173,7 @@ async function finish(args: {
   }
 
   const run: AuditRun = {
-    id: args.previous?.id ?? `${target}-${randomUUID().slice(0, 8)}`,
+    id: args.previous?.id ?? (args.demo && DEMO_MODE ? DEMO_RUN_ID : `${target}-${randomUUID().slice(0, 8)}`),
     createdAt: new Date().toISOString(),
     targetMonth: target,
     clinicName: args.clinicName ?? (clinic.name || cur.clinicName),

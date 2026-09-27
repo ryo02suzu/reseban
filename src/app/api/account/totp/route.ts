@@ -1,5 +1,5 @@
 import QRCode from "qrcode";
-import { handle, HttpError, readJson } from "@/lib/api";
+import { forbidInDemo, handle, HttpError, readJson } from "@/lib/api";
 import { actorOf, getSession } from "@/lib/auth";
 import { logAction, updateUser } from "@/lib/repo/core";
 import { newTotpSecret, totpUri, verifyPassword, verifyTotp } from "@/lib/security/crypto";
@@ -15,6 +15,7 @@ export async function POST(request: Request) {
     const s = await getSession();
     if (!s || s.pending2fa) throw new HttpError(401, "ログインしてください");
     const body = await readJson<{ action?: string; code?: string; password?: string }>(request);
+    forbidInDemo();
     if (body.action === "setup") {
       if (s.user.totpEnabled) throw new HttpError(400, "すでに有効です");
       const secret = newTotpSecret();

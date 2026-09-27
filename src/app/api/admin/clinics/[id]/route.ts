@@ -1,4 +1,4 @@
-import { handle, HttpError, notFound, readJson } from "@/lib/api";
+import { forbidInDemo, handle, HttpError, notFound, readJson } from "@/lib/api";
 import { actorOf, requireApiUser } from "@/lib/auth";
 import { createToken, getClinic, getUserByEmail, logAction, updateClinic } from "@/lib/repo/core";
 
@@ -8,6 +8,7 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function PATCH(request: Request, { params }: Ctx) {
   const { id } = await params;
   return handle(async () => {
+    forbidInDemo();
     const s = await requireApiUser(["operator"]);
     const clinic = (await getClinic(id)) ?? notFound("医院");
     const b = await readJson<{ status?: "active" | "suspended"; aiMonthlyLimit?: number; note?: string; name?: string; inviteOwner?: string }>(request);

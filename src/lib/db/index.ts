@@ -15,7 +15,7 @@ import { DEMO_MODE } from "../demo/mode";
  */
 export type Db = NodePgDatabase<typeof schema>;
 
-const g = globalThis as unknown as { __resebanDb?: Promise<Db> };
+const g = globalThis as unknown as { __resebanDb?: Promise<Db>; __resebanRaw?: Promise<Db>; __resebanSeeding?: boolean };
 
 function migrationsFolder() {
   return path.join(/*turbopackIgnore: true*/ process.cwd(), "drizzle");
@@ -64,8 +64,25 @@ async function connect(): Promise<Db> {
   return db as unknown as Db;
 }
 
+async function init(): Promise<Db> {
+  g.__resebanRaw = connect();
+  const db = await g.__resebanRaw;
+  if (DEMO_MODE) {
+    // デモの初期データはリポジトリ関数で作るため、その間だけ getDb() は接続そのものを返す
+    g.__resebanSeeding = true;
+    try {
+      const { seedDemoData } = await import("./demo-seed");
+      await seedDemoData();
+    } finally {
+      g.__resebanSeeding = false;
+    }
+  }
+  return db;
+}
+
 export function getDb(): Promise<Db> {
-  g.__resebanDb ??= connect().catch((e) => {
+  if (g.__resebanSeeding && g.__resebanRaw) return g.__resebanRaw;
+  g.__resebanDb ??= init().catch((e) => {
     g.__resebanDb = undefined;
     throw e;
   });

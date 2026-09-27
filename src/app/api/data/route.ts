@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { handle, HttpError, readJson } from "@/lib/api";
+import { forbidInDemo, handle, HttpError, readJson } from "@/lib/api";
 import { actorOf, requireClinicApi } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { claimHistory, clinicRuleSettings, monthReceipts, rules, runs } from "@/lib/db/schema";
@@ -8,6 +8,7 @@ import { logAction } from "@/lib/repo/core";
 /** 医院のレセプト・チェック結果・独自ルール・実績を全て削除（アカウントは残る） */
 export async function DELETE(request: Request) {
   return handle(async () => {
+    forbidInDemo();
     const s = await requireClinicApi(["owner"]);
     const { confirm } = await readJson<{ confirm?: string }>(request);
     if (confirm !== "削除") throw new HttpError(400, "確認のため「削除」と入力してください");

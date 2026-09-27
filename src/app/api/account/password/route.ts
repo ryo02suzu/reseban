@@ -1,4 +1,4 @@
-import { handle, HttpError, readJson } from "@/lib/api";
+import { forbidInDemo, handle, HttpError, readJson } from "@/lib/api";
 import { actorOf, destroyUserSessions, requireApiUser } from "@/lib/auth";
 import { logAction, updateUser } from "@/lib/repo/core";
 import { hashPassword, passwordProblem, verifyPassword } from "@/lib/security/crypto";
@@ -6,6 +6,7 @@ import { hashPassword, passwordProblem, verifyPassword } from "@/lib/security/cr
 export async function POST(request: Request) {
   return handle(async () => {
     const s = await requireApiUser(undefined, { allowPending: false });
+    forbidInDemo();
     const { current, next } = await readJson<{ current?: string; next?: string }>(request);
     if (!(await verifyPassword(current ?? "", s.user.passwordHash))) throw new HttpError(400, "今のパスワードが違います");
     const problem = passwordProblem(next ?? "", s.user.email);

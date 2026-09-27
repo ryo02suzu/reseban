@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/AuthForms";
 import { getSession } from "@/lib/auth";
 import { countUsers } from "@/lib/repo/core";
-import { DEMO_ACCOUNTS, DEMO_MODE } from "@/lib/demo/mode";
+import { DEMO_ACCOUNTS, DEMO_MODE, DEMO_PASSWORD } from "@/lib/demo/mode";
 
 export default async function LoginPage() {
   const s = await getSession();
@@ -21,7 +21,7 @@ export default async function LoginPage() {
             <li>医院のスタッフ：{DEMO_ACCOUNTS.staff.email}</li>
             <li>運営者：{DEMO_ACCOUNTS.operator.email}</li>
           </ul>
-          <p style={{ margin: "6px 0 0" }}>パスワードはどれも {DEMO_ACCOUNTS.owner.password}</p>
+          <p style={{ margin: "6px 0 0" }}>パスワードはどれも {DEMO_PASSWORD}</p>
         </div>
       )}
       {noUsers && (
