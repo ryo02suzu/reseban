@@ -1,0 +1,32 @@
+# ローカルで本番と同じ構成（アプリ＋PostgreSQL）を動かす
+#   DATA_ENCRYPTION_KEY=$(openssl rand -base64 32) docker compose up --build
+#   docker compose exec app node scripts/create-operator.mjs you@example.com
+services:
+  db:
+    image: public.ecr.aws/docker/library/postgres:16
+    environment:
+      POSTGRES_USER: reseban
+      POSTGRES_PASSWORD: reseban-local-only
+      POSTGRES_DB: reseban
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reseban"]
+      interval: 5s
+      retries: 10
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://reseban:reseban-local-only@db:5432/reseban
+      DATABASE_SSL: "false"
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?DATA_ENCRYPTION_KEY を設定してください（openssl rand -base64 32）}
+      APP_URL: http://localhost:3000
+      # ローカルは http なので Secure Cookie を外す（本番では設定しない）
+      INSECURE_COOKIES: "1"
+volumes:
+  db:

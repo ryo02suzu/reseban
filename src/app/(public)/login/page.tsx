@@ -12,7 +12,7 @@ export default async function LoginPage() {
       <h1>ログイン</h1>
       {noUsers && (
         <p className="notice info">
-          まだアカウントがありません。サーバーで <code>npm run create-operator -- you@example.com</code> を実行し、表示された招待リンクから運営者アカウントを作成してください。
+          まだアカウントがありません。サーバーで <code>node scripts/create-operator.mjs you@example.com</code> を実行し、表示された招待リンクから運営者アカウントを作成してください。
         </p>
       )}
       <LoginForm />

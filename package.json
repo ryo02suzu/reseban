@@ -10,7 +10,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "create-operator": "tsx --conditions=react-server scripts/create-operator.ts",
+    "create-operator": "node scripts/create-operator.mjs",
     "build:demo-master": "tsx scripts/build-demo-master.ts"
   },
   "dependencies": {
