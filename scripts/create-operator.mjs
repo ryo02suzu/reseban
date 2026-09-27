@@ -24,7 +24,10 @@ if (url.startsWith("postgres")) {
   const { migrate } = await import("drizzle-orm/node-postgres/migrator");
   const client = new pg.Client({
     connectionString: url,
-    ssl: process.env.DATABASE_SSL === "false" || url.includes("localhost") ? undefined : { rejectUnauthorized: true },
+    ssl:
+      process.env.DATABASE_SSL === "false" || url.includes("localhost")
+        ? undefined
+        : { rejectUnauthorized: true, ca: process.env.DATABASE_CA_CERT?.replace(/\\n/g, "\n") || undefined },
   });
   await client.connect();
   close = () => client.end();

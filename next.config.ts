@@ -29,6 +29,11 @@ const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
   serverExternalPackages: ["@electric-sql/pglite", "pg"],
+  // マイグレーション（drizzle/）は実行時に読むため、サーバーレス環境（Vercel 等）にも同梱する
+  // デモ環境（RESEBAN_DEMO=1）の組み込み DB の本体も同梱する
+  outputFileTracingIncludes: {
+    "/**": ["./drizzle/**/*", "./node_modules/@electric-sql/pglite/dist/*.{wasm,data}"],
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

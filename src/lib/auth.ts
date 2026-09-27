@@ -7,6 +7,8 @@ import { sessions } from "./db/schema";
 import { randomToken, sha256 } from "./security/crypto";
 import { getClinic, getUser, type Actor, type Clinic, type Role, type User } from "./repo/core";
 import { HttpError } from "./api";
+import { DEMO_MODE } from "./demo/mode";
+import { TERMS_VERSION } from "./terms";
 
 export const SESSION_COOKIE = "rb_session";
 /** 操作がなければ自動ログアウト（分） */
@@ -14,7 +16,7 @@ const IDLE_MINUTES = Number(process.env.SESSION_IDLE_MINUTES ?? 60);
 /** ログインの最長時間（時間） */
 const ABSOLUTE_HOURS = Number(process.env.SESSION_MAX_HOURS ?? 12);
 
-export const TERMS_VERSION = "2026-10";
+export { TERMS_VERSION };
 
 export interface Session {
   user: User;
@@ -94,7 +96,7 @@ export async function getSession(): Promise<Session | null> {
   if (user.clinicId && (!clinic || clinic.status !== "active")) return null;
   // 1分に1回だけ最終操作時刻を更新
   if (now - s.lastSeenAt.getTime() > 60_000) await db.update(sessions).set({ lastSeenAt: new Date() }).where(eq(sessions.id, id));
-  const mustHave2fa = user.role === "operator" || !!clinic?.require2fa || process.env.REQUIRE_2FA === "1";
+  const mustHave2fa = (user.role === "operator" && !DEMO_MODE) || !!clinic?.require2fa || process.env.REQUIRE_2FA === "1";
   return {
     user,
     clinic,
