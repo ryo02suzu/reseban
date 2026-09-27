@@ -15,6 +15,8 @@ export const DEMO_PASSWORD = "reseban-demo-2026";
 export const DEMO_CLINIC_ID = "c_demo";
 /** サンプルデータのチェック結果（どのインスタンスでも同じ ID にする） */
 export const DEMO_RUN_ID = "202609-sample";
+/** 紙レセプト入力のサンプルのチェック結果 */
+export const DEMO_PAPER_RUN_ID = "202609-paper-sample";
 
 export const DEMO_ACCOUNTS = {
   owner: { id: "u_demo_owner", email: "demo@reseban.jp", name: "デモ院長" },

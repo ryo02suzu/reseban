@@ -298,6 +298,11 @@ export function parseUke(text: string, opts: ParseOptions): ParsedFile {
   return file;
 }
 
+/** 紙レセプトなど、レセ電以外から作るレセプトの患者キー（レセ電と同じ作り方） */
+export function patientKeyOf(salt: string, karteNo: string, birth = ""): string {
+  return hashKey(salt, ["k", karteNo, birth]);
+}
+
 function hashKey(salt: string, parts: (string | undefined)[]): string {
   return createHash("sha256")
     .update(salt)

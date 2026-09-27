@@ -170,6 +170,25 @@ export const claimHistory = pgTable("claim_history", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** 紙レセプトの手入力（氏名等の欄はない。医療情報なので内容は暗号化して保存） */
+export const paperReceipts = pgTable(
+  "paper_receipts",
+  {
+    id: id(),
+    clinicId: text("clinic_id")
+      .notNull()
+      .references(() => clinics.id, { onDelete: "cascade" }),
+    month: text("month").notNull(),
+    /** 月ごとの通し番号 */
+    no: integer("no").notNull(),
+    payload: bytea("payload").notNull(),
+    createdBy: text("created_by"),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("paper_receipts_clinic_month_idx").on(t.clinicId, t.month)],
+);
+
 /** 月別レセプト（氏名等は含まないが医療情報なのでアプリ側でも暗号化して保存） */
 export const monthReceipts = pgTable(
   "month_receipts",
@@ -199,6 +218,8 @@ export const runs = pgTable(
     warnings: jsonb("warnings").$type<string[]>().notNull(),
     suggestions: jsonb("suggestions").$type<AiSuggestion[]>().notNull().default(sql`'[]'::jsonb`),
     demo: boolean("demo").notNull().default(false),
+    /** 取り込み元（uke：レセ電、paper：紙レセプトの手入力） */
+    source: text("source", { enum: ["uke", "paper"] }).notNull().default("uke"),
     createdBy: text("created_by").notNull().default(""),
     createdAt: createdAt(),
   },

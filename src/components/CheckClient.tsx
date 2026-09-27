@@ -371,6 +371,11 @@ export function CheckClient({
                           サンプル
                         </span>
                       )}
+                      {r.source === "paper" && (
+                        <span className="badge neutral" style={{ marginLeft: 8 }}>
+                          紙レセプト
+                        </span>
+                      )}
                     </td>
                     <td className="muted">{formatDateTime(r.createdAt)}</td>
                     <td className="num">{r.summary.receiptCount.toLocaleString()}</td>

@@ -7,10 +7,14 @@ import type { ParsedFile, ParsedReceipt } from "./uke/types";
 import { runRules, summarize, monthsBack } from "./rules/engine";
 import { buildIndex, type MasterIndex } from "./master/bundle";
 import { DEMO_FILED, DEMO_MASTER, DEMO_TARGET, demoUke } from "./demo";
-import { DEMO_MODE, DEMO_RUN_ID } from "./demo/mode";
+import { DEMO_MODE, DEMO_PAPER_RUN_ID, DEMO_RUN_ID } from "./demo/mode";
 import { getMasterIndex, updateClinic, type Clinic } from "./repo/core";
 import { listClinicRules } from "./repo/rules";
-import { getMonthReceipts, getRun, mergeMonthReceipts, saveRun } from "./repo/runs";
+import { getMonthReceipts, getRun, listRuns, mergeMonthReceipts, saveRun } from "./repo/runs";
+import { listPaper } from "./repo/paper";
+import { findByomei, findShinryo, PAPER_PAYER, paperToReceipt } from "./paper/convert";
+import type { PaperReceiptInput } from "./paper/types";
+import { parseTeethInput } from "./teeth";
 
 export const HISTORY_MONTHS = 6;
 export const MAX_UPLOAD_BYTES = 30 * 1024 * 1024;
@@ -137,6 +141,52 @@ export async function runAudit(clinic: Clinic, input: { current: Uint8Array[]; h
   return finish({ clinic, cur, target, byMonth, warnings, master, filed: clinic.facilityCodes, demo: false, userId });
 }
 
+/** 紙レセプトの入力内容で気をつけること（マスターに無い名称・読めない部位） */
+export function paperNotes(p: PaperReceiptInput, master: MasterIndex): string[] {
+  const notes: string[] = [];
+  if (!master.loaded.has("shinryo")) return ["マスターが未取込のため、項目名で判定できません。運営者に連絡してください。"];
+  for (const a of p.acts) {
+    if (!findShinryo(master, a.name, a.code)) notes.push(`「${a.name}」はマスターの名称と一致しません。候補から選ぶと正確に判定できます。`);
+    const bad = parseTeethInput(a.teeth).bad;
+    if (bad.length) notes.push(`部位「${bad.join("、")}」が読めません（例：右下6、46、上顎）。`);
+  }
+  for (const d of p.diagnoses) {
+    if (master.byomei.size && !findByomei(master, d.name)) notes.push(`傷病名「${d.name}」はマスターに見つかりません（名称のまま判定します）。`);
+    const bad = parseTeethInput(d.teeth).bad;
+    if (bad.length) notes.push(`部位「${bad.join("、")}」が読めません（例：右下6、46、上顎）。`);
+  }
+  return [...new Set(notes)];
+}
+
+/** 紙レセプト1枚を、保存せずにその場でチェックする（入力中の確認用） */
+export async function previewPaper(clinic: Clinic, input: PaperReceiptInput): Promise<{ findings: Finding[]; notes: string[] }> {
+  const master = await getMasterIndex();
+  const rec = paperToReceipt({ ...input, no: 0 }, master, clinic.salt);
+  const history: ParsedReceipt[] = [];
+  for (const m of expectedHistoryMonths(input.month)) history.push(...((await getMonthReceipts(clinic.id, m)) ?? []));
+  const rules = await listClinicRules(clinic.id);
+  const findings = runRules({ current: [rec], history, rules, filedFacility: clinic.facilityCodes, master });
+  return { findings, notes: paperNotes(input, master) };
+}
+
+/** 保存した紙レセプトで、その月をまとめてチェックする（同じ月の前回の結果の対応状況は引き継ぐ） */
+export async function runPaperAudit(clinic: Clinic, month: string, userId: string): Promise<AuditRun> {
+  const master = await getMasterIndex();
+  const paper = await listPaper(clinic.id, month);
+  if (!paper.length) throw new Error("この月の紙レセプトがまだ入力されていません。");
+  const receipts = paper.map((p) => paperToReceipt(p, master, clinic.salt));
+  await mergeMonthReceipts(clinic.id, month, receipts);
+  const warnings = masterWarnings(master);
+  const unmatched = paper.flatMap((p) => p.acts.filter((a) => !findShinryo(master, a.name, a.code)).map((a) => a.name));
+  if (unmatched.length && master.loaded.has("shinryo")) {
+    warnings.push(`マスターの名称と一致しない項目が${unmatched.length}件あります（例：${[...new Set(unmatched)].slice(0, 3).join("、")}）。紙レセプト入力で候補から選び直すと正確に判定できます。`);
+  }
+  const prevItem = (await listRuns(clinic.id)).find((r) => r.source === "paper" && r.targetMonth === month);
+  const previous = prevItem ? ((await getRun(clinic.id, prevItem.id)) ?? undefined) : undefined;
+  const cur: ParsedFile = { payer: PAPER_PAYER, volume: "", clinicCode: clinic.code, clinicName: clinic.name, billingMonth: "", month, todokede: [], receipts, warnings: [], unknownCodes: [] };
+  return finish({ clinic, cur, target: month, byMonth: new Map(), warnings, master, filed: clinic.facilityCodes, demo: false, userId, previous, source: "paper" });
+}
+
 const formatYm = (ym: string) => `${ym.slice(0, 4)}年${Number(ym.slice(4, 6))}月`;
 const payerName = (f: ParsedFile) => PAYER_LABELS[f.payer] ?? "審査支払機関不明";
 
@@ -170,6 +220,7 @@ export async function rerunAudit(clinic: Clinic, id: string, userId: string): Pr
   const previous = await getRun(clinic.id, id);
   if (!previous) return null;
   if (previous.demo) return runDemoAudit(clinic, userId, previous);
+  if (previous.source === "paper") return runPaperAudit(clinic, previous.targetMonth, userId);
   const receipts = await getMonthReceipts(clinic.id, previous.targetMonth);
   if (!receipts) throw new Error("この月のレセプトデータが保存期間を過ぎて削除されています。もう一度ファイルを取り込んでください。");
   const master = await getMasterIndex();
@@ -199,6 +250,7 @@ async function finish(args: {
   userId: string;
   previous?: AuditRun;
   clinicName?: string;
+  source?: "uke" | "paper";
 }): Promise<AuditRun> {
   const { clinic, cur, target, byMonth, warnings, master } = args;
   const historyMonths: string[] = [];
@@ -235,7 +287,7 @@ async function finish(args: {
   }
 
   const run: AuditRun = {
-    id: args.previous?.id ?? (args.demo && DEMO_MODE ? DEMO_RUN_ID : `${target}-${randomUUID().slice(0, 8)}`),
+    id: args.previous?.id ?? (DEMO_MODE && args.demo ? DEMO_RUN_ID : DEMO_MODE && args.source === "paper" ? DEMO_PAPER_RUN_ID : `${target}-${randomUUID().slice(0, 8)}`),
     createdAt: new Date().toISOString(),
     targetMonth: target,
     clinicName: args.clinicName ?? (clinic.name || cur.clinicName),
@@ -246,6 +298,7 @@ async function finish(args: {
     suggestions: args.previous?.suggestions ?? [],
     warnings,
     demo: args.demo,
+    source: args.source ?? args.previous?.source ?? "uke",
   };
   await saveRun(clinic.id, run, args.userId);
   return run;

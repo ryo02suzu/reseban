@@ -79,6 +79,7 @@ export async function saveRun(clinicId: string, run: AuditRun, createdBy: string
       warnings: run.warnings,
       suggestions: run.suggestions,
       demo: !!run.demo,
+      source: run.source ?? "uke",
       createdBy,
       createdAt: new Date(run.createdAt),
     });
@@ -110,6 +111,7 @@ export async function getRun(clinicId: string, id: string): Promise<AuditRun | n
     warnings: r.warnings,
     suggestions: r.suggestions,
     demo: r.demo,
+    source: r.source,
     findings: fs.map((f) => ({ ...f.data, status: f.status, memo: f.memo || undefined, aiExplanation: f.aiExplanation || undefined })),
   };
 }
@@ -127,6 +129,7 @@ export async function listRuns(clinicId: string): Promise<AuditRunListItem[]> {
     summary: r.summary,
     warnings: r.warnings,
     demo: r.demo,
+    source: r.source,
   }));
 }
 

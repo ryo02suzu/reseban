@@ -165,6 +165,11 @@ export function ReportClient({ initialRun, aiReady }: { initialRun: AuditRun; ai
                 サンプル
               </span>
             )}
+            {run.source === "paper" && (
+              <span className="badge neutral" style={{ marginLeft: 10, verticalAlign: "middle" }}>
+                紙レセプト
+              </span>
+            )}
           </h1>
           <p>
             {run.clinicName || "医院名未設定"}　｜　対象レセ件数 {s.receiptCount.toLocaleString()}件　｜　対象月 {monthsLabel}

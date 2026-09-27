@@ -53,7 +53,7 @@ export function detectMonth(text: string): string | undefined {
   return detectFileInfo(text).month;
 }
 
-export const PAYER_LABELS: Record<string, string> = { "1": "社保", "2": "国保" };
+export const PAYER_LABELS: Record<string, string> = { "1": "社保", "2": "国保", P: "紙" };
 
 /** 画面でファイルを選んだ時の表示用：診療年月（最も多いもの）・審査支払機関・ボリューム */
 export function detectFileInfo(text: string): { month?: string; payer?: string; volume?: string } {

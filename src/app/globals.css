@@ -469,6 +469,7 @@ input[type="search"],
 input[type="password"],
 input[type="email"],
 input[type="number"],
+input[type="month"],
 select,
 textarea {
   font: inherit;
@@ -1463,4 +1464,94 @@ dialog::backdrop {
 
 .auth-box:has(.legal) {
   width: min(780px, 100%);
+}
+
+/* ---------- 紙レセプト入力 ---------- */
+.paper-top {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr) 120px 120px;
+  gap: 14px;
+}
+
+.paper-h {
+  font-size: 15px;
+  margin: 22px 0 8px;
+}
+
+.paper-rows {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.paper-row {
+  display: grid;
+  gap: 8px;
+  align-items: start;
+}
+
+.paper-row.diag {
+  grid-template-columns: 200px minmax(0, 1fr) 32px;
+}
+
+.paper-row.act {
+  grid-template-columns: 110px minmax(0, 2fr) 70px 150px minmax(0, 1.2fr) 32px;
+}
+
+.paper-row.head {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.paper-row > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.paper-preview {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.paper-finding {
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.paper-finding:first-of-type {
+  border-top: none;
+}
+
+button.file-chip {
+  cursor: pointer;
+  background: var(--surface, #fff);
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 12px;
+}
+
+button.file-chip.active {
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+tr.selected td {
+  background: var(--primary-soft);
+}
+
+@media (max-width: 900px) {
+  .paper-top,
+  .paper-row.diag,
+  .paper-row.act {
+    grid-template-columns: 1fr;
+  }
+  .paper-row.head {
+    display: none;
+  }
 }

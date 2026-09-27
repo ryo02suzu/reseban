@@ -43,6 +43,7 @@ export const ROLE_LABELS = { operator: "運営者", owner: "管理者", staff: "
 
 export const CLINIC_NAV = (isOwner: boolean): NavItem[] => [
   { href: "/", label: "チェック（取込）", icon: "check", exact: true },
+  { href: "/paper", label: "紙レセプト入力", icon: "paper" },
   { href: "/report", label: "レポート", icon: "report" },
   { href: "/rules", label: "ルール", icon: "rules" },
   { href: "/settings", label: "設定", icon: "settings" },

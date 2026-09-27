@@ -103,7 +103,7 @@ describe("レセ電パーサー（記録条件仕様 令和8年6月版）", () =
 
   it("傷病名はマスターから名称と歯科略称を引く", () => {
     const d = f.receipts.find((x) => x.karteNo === "00123")!.diagnoses[0];
-    expect(d).toMatchObject({ code: "5234016", name: "慢性歯周炎", abbr: "Ｐ", teeth: ["104610"] });
+    expect(d).toMatchObject({ code: "5234016", name: "慢性歯周炎", abbr: "Ｐ", teeth: ["104600"] });
     expect(teethLabel(d.teeth)).toBe("右下6");
   });
 
@@ -245,5 +245,26 @@ describe("返戻・査定実績", () => {
     const rules = reprioritize(BUILTIN_RULES, rows);
     expect(rules[0].id).toBe("excl-shoshin-saishin");
     expect(rules.map((r) => r.priority)).toEqual(rules.map((_, i) => i + 1));
+  });
+});
+
+describe("紙レセプトの部位・算定日の入力", () => {
+  it("「右下6」「右下5-7」「46」「上顎」「右上E」を歯式コードにする", async () => {
+    const { parseTeethInput } = await import("@/lib/teeth");
+    expect(parseTeethInput("右下6").codes).toEqual(["104600"]);
+    expect(parseTeethInput("右下5-7").codes).toEqual(["104500", "104600", "104700"]);
+    expect(parseTeethInput("46、47").codes).toEqual(["104600", "104700"]);
+    expect(parseTeethInput("上顎").codes).toEqual(["100100"]);
+    expect(parseTeethInput("右上E").codes).toEqual(["105500"]);
+    expect(parseTeethInput("右上E").codes.map((c) => teethLabel([c]))).toEqual(["右上E"]);
+    expect(parseTeethInput("右下9").bad).toEqual(["右下9"]);
+  });
+
+  it("算定日「3,10」「3-5」を読み、読めないものを返す", async () => {
+    const { parseDays } = await import("@/lib/paper/types");
+    expect(parseDays("3,10").days).toEqual([3, 10]);
+    expect(parseDays("３・１０日").days).toEqual([3, 10]);
+    expect(parseDays("3-5").days).toEqual([3, 4, 5]);
+    expect(parseDays("32").bad).toEqual(["32"]);
   });
 });

@@ -36,5 +36,22 @@ export async function seedDemoData() {
     if (data?.length) await saveMaster(kind, `サンプル（${label}の抜粋）`, data, "demo");
   }
   const clinic = await getClinic(DEMO_CLINIC_ID);
-  if (clinic) await runDemoAudit(clinic, DEMO_ACCOUNTS.owner.id);
+  if (!clinic) return;
+  await runDemoAudit(clinic, DEMO_ACCOUNTS.owner.id);
+
+  // 紙レセプト入力のサンプル（架空）
+  const { createPaper } = await import("../repo/paper");
+  const { runPaperAudit } = await import("../audit");
+  const month = "202609";
+  const act = (days: string, name: string, teeth = "") => ({ days, name, teeth, comment: "" });
+  const samples = [
+    { patientId: "P-001", sex: "1" as const, age: 52, diagnoses: [{ teeth: "右下6,7", name: "P" }], acts: [act("4", "再診"), act("4", "ＳＲＰ（大臼歯）", "右下6,7")] },
+    { patientId: "P-002", sex: "2" as const, age: 38, diagnoses: [{ teeth: "右上6", name: "C" }], acts: [act("7", "再診"), act("7", "抜髄（３根管以上）", "右上6")] },
+    { patientId: "P-003", sex: "2" as const, age: 70, diagnoses: [{ teeth: "上顎", name: "P" }], acts: [act("2,16", "再診"), act("2,16", "歯科疾患管理料")] },
+    { patientId: "P-004", sex: "1" as const, age: 45, diagnoses: [{ teeth: "右下6", name: "Pul" }], acts: [act("12", "再診"), act("12", "抜髄（３根管以上）", "右下6")] },
+  ];
+  for (const [i, s] of samples.entries()) {
+    await createPaper(DEMO_CLINIC_ID, { month, memo: "", ...s, acts: s.acts.map((a) => ({ ...a, count: a.teeth.includes(",") ? 2 : undefined })) }, "demo", `p_demo_${i + 1}`);
+  }
+  await runPaperAudit(clinic, month, DEMO_ACCOUNTS.owner.id);
 }

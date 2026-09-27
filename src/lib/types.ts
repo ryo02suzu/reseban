@@ -110,6 +110,8 @@ export interface AuditRun {
   suggestions: AiSuggestion[];
   warnings: string[];
   demo?: boolean;
+  /** 取り込み元（紙レセプトの手入力なら "paper"） */
+  source?: "uke" | "paper";
 }
 
 export type AuditRunListItem = Omit<AuditRun, "findings" | "suggestions">;

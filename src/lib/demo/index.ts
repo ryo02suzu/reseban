@@ -33,8 +33,8 @@ const D = {
   pulpitis: "5220064", // 急性化膿性歯髄炎（Ｐｕｌ）
 };
 
-/** 歯式コード：歯種4桁 + 状態「1」(現存歯) + 部分「0」 */
-const T = (tooth: string) => `10${tooth}10`;
+/** 歯式コード：歯種4桁 + 状態「0」(現存歯) + 部分「0」(指定なし) */
+const T = (tooth: string) => `10${tooth}00`;
 
 function rec(type: string, len: number, set: Record<number, string | number>) {
   const f: string[] = Array(len).fill("");
