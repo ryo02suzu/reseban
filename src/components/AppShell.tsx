@@ -45,6 +45,7 @@ export const CLINIC_NAV = (isOwner: boolean): NavItem[] => [
   { href: "/", label: "チェック（取込）", icon: "check", exact: true },
   { href: "/paper", label: "紙レセプト入力", icon: "paper" },
   { href: "/report", label: "レポート", icon: "report" },
+  { href: "/claims", label: "返戻・査定の記録", icon: "claims" },
   { href: "/rules", label: "ルール", icon: "rules" },
   { href: "/settings", label: "設定", icon: "settings" },
   ...(isOwner

@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { receiptLabel } from "@/lib/uke/text";
+import type { OutcomeSummary } from "@/lib/rules/outcome";
 import type { AiSuggestion, AuditRun, CheckCategory, Finding, FindingStatus, Impact } from "@/lib/types";
 import { CATEGORY_LABELS, CATEGORY_ORDER, IMPACT_LABELS, STATUS_LABELS } from "@/lib/types";
 import { formatMonth } from "@/lib/format";
@@ -36,7 +37,7 @@ function fmtDate(d?: string) {
   return d ? d.replaceAll("-", "/") : "—";
 }
 
-export function ReportClient({ initialRun, aiReady }: { initialRun: AuditRun; aiReady: boolean }) {
+export function ReportClient({ initialRun, aiReady, outcome }: { initialRun: AuditRun; aiReady: boolean; outcome?: OutcomeSummary }) {
   const router = useRouter();
   const toast = useToast();
   const [run, setRun] = useState(initialRun);
@@ -242,6 +243,39 @@ export function ReportClient({ initialRun, aiReady }: { initialRun: AuditRun; ai
           </div>
         )}
       </div>
+
+      {outcome && outcome.total > 0 && (
+        <section className="card outcome-card no-print">
+          <div className="row" style={{ gap: 12 }}>
+            <h2 style={{ margin: 0 }}>答え合わせ</h2>
+            <span>
+              実際の返戻・査定 <b>{outcome.total}件</b> のうち、レセ番が指摘できたのは <b>{outcome.caught}件</b>（
+              {Math.round((outcome.caught / outcome.total) * 100)}%）
+            </span>
+            <span className="spacer" />
+            <a className="small" href="/claims">
+              返戻・査定の記録へ
+            </a>
+          </div>
+          <ul className="outcome-list">
+            {outcome.rows.map((r) => (
+              <li key={r.row.id}>
+                {r.findingId ? (
+                  <button type="button" className="linklike" onClick={() => setSelectedId(r.findingId)} style={{ color: "var(--more)" }}>
+                    ✓ 指摘あり
+                  </button>
+                ) : (
+                  <span style={{ color: "var(--henrei)" }}>✗ 見逃し</span>
+                )}
+                <span className={`badge solid ${r.row.kind}`}>{r.row.kind === "henrei" ? "返戻" : "査定"}</span>
+                {r.row.itemName}
+                {r.row.reason && <span className="muted small">（{r.row.reason}）</span>}
+                {r.row.patientId && <span className="muted small">カルテ番号 {r.row.patientId}</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="grid grid-report">
         <section className="card">

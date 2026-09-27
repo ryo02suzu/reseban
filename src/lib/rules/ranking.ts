@@ -4,7 +4,7 @@ import type { ClaimHistoryRow, RankingRow, Rule } from "./types";
 
 /**
  * 返戻・査定の実績CSVを読む。
- * 列：年月, 区分(返戻/査定), 項目名, 事由, 点数（1行目が見出しなら読み飛ばす）
+ * 列：年月, 区分(返戻/査定), 項目名, 事由, 点数, カルテ番号（任意）（1行目が見出しなら読み飛ばす）
  */
 export function parseClaimHistory(buf: ArrayBuffer | Uint8Array): ClaimHistoryRow[] {
   const rows: ClaimHistoryRow[] = [];
@@ -21,6 +21,7 @@ export function parseClaimHistory(buf: ArrayBuffer | Uint8Array): ClaimHistoryRo
       itemName: f[2],
       reason: f[3] ?? "",
       points: Math.abs(Number(f[4]) || 0),
+      ...(f[5] ? { patientId: f[5].slice(0, 30) } : {}),
     });
   }
   return rows;

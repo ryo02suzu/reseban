@@ -64,8 +64,8 @@ function dataKey(): Buffer {
     cachedKey = k;
     return k;
   }
-  // デモ環境：DB もメモリ上なので、鍵も起動ごとの使い捨てでよい
-  if (DEMO_MODE) return (cachedKey = randomBytes(32));
+  // デモ環境：架空データだけなので固定の鍵（サーバーレスの複数インスタンス・複数バンドルでも同じ鍵になる）
+  if (DEMO_MODE) return (cachedKey = createHash("sha256").update("reseban-demo-data-key").digest());
   if (process.env.NODE_ENV === "production" && process.env.RESEBAN_ALLOW_DEV_KEY !== "1") {
     throw new Error("本番環境では DATA_ENCRYPTION_KEY の設定が必要です");
   }

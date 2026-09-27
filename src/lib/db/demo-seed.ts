@@ -54,4 +54,13 @@ export async function seedDemoData() {
     await createPaper(DEMO_CLINIC_ID, { month, memo: "", ...s, acts: s.acts.map((a) => ({ ...a, count: a.teeth.includes(",") ? 2 : undefined })) }, "demo", `p_demo_${i + 1}`);
   }
   await runPaperAudit(clinic, month, DEMO_ACCOUNTS.owner.id);
+
+  // 返戻・査定の記録のサンプル（答え合わせの表示用）
+  const { saveClaimHistory } = await import("../repo/rules");
+  await saveClaimHistory(DEMO_CLINIC_ID, [
+    { id: "h_demo_1", month, kind: "satei", itemName: "歯科疾患管理料", reason: "回数超過", points: 100, patientId: "P-003" },
+    { id: "h_demo_2", month, kind: "henrei", itemName: "抜髄", reason: "病名と診療内容の不一致", points: 600, patientId: "P-002" },
+    { id: "h_demo_3", month, kind: "satei", itemName: "充填１（単純なもの）", reason: "D（告示・通知の算定要件に合致していない）", points: 106 },
+    { id: "h_demo_4", month: "202608", kind: "satei", itemName: "歯周基本治療", reason: "過剰", points: 144 },
+  ]);
 }

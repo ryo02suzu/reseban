@@ -5,6 +5,7 @@ import { claimHistory, clinicRuleSettings, ruleDrafts, rules } from "../db/schem
 import { BUILTIN_RULES } from "../rules/builtin";
 import type { ClaimHistoryRow, Rule, RuleDraft } from "../rules/types";
 import { reprioritize } from "../rules/ranking";
+import { newId, sha256 } from "../security/crypto";
 
 export type ScopedRule = Rule & { origin: "global" | "clinic" };
 
@@ -94,15 +95,33 @@ export async function deleteClinicRule(clinicId: string, ruleId: string) {
 export async function getClaimHistory(clinicId: string): Promise<ClaimHistoryRow[]> {
   const db = await getDb();
   const [r] = await db.select().from(claimHistory).where(eq(claimHistory.clinicId, clinicId));
-  return r?.rows ?? [];
+  // 以前の取込分には id が無いので、読むときに振る（内容から決まる値にして、読むたびに変わらないようにする）
+  return (r?.rows ?? []).map((row, i) => (row.id ? row : { ...row, id: `h${i}-${sha256(JSON.stringify(row)).slice(0, 8)}` }));
 }
 
-export async function saveClaimHistory(clinicId: string, rows: ClaimHistoryRow[]) {
+export async function saveClaimHistory(clinicId: string, input: ClaimHistoryRow[]) {
+  const rows = input.map((r) => (r.id ? r : { ...r, id: newId("h_") }));
   const db = await getDb();
   await db
     .insert(claimHistory)
     .values({ clinicId, rows })
     .onConflictDoUpdate({ target: claimHistory.clinicId, set: { rows, updatedAt: new Date() } });
+}
+
+/** 実績を1件追加する */
+export async function addClaimHistoryRow(clinicId: string, row: ClaimHistoryRow): Promise<ClaimHistoryRow> {
+  const added = { ...row, id: newId("h_") };
+  await saveClaimHistory(clinicId, [...(await getClaimHistory(clinicId)), added]);
+  return added;
+}
+
+/** 実績を1件消す */
+export async function deleteClaimHistoryRow(clinicId: string, id: string): Promise<boolean> {
+  const rows = await getClaimHistory(clinicId);
+  const next = rows.filter((r) => r.id !== id);
+  if (next.length === rows.length) return false;
+  await saveClaimHistory(clinicId, next);
+  return true;
 }
 
 /** 実績の多い順に、この医院での優先順位を付け直す */

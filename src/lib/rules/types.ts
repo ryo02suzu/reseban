@@ -144,13 +144,18 @@ export interface RuleDraft {
   status: "pending" | "adopted" | "rejected";
 }
 
-/** 返戻・査定の実績1件 */
+/** 返戻・査定の実績1件（増減点連絡書・返戻付箋などから） */
 export interface ClaimHistoryRow {
+  /** 行の識別子（画面から1件ずつ消すため） */
+  id?: string;
+  /** 診療年月 YYYYMM */
   month: string;
   kind: "henrei" | "satei";
   itemName: string;
   reason: string;
   points: number;
+  /** カルテ番号・紙レセプトの患者ID（分かれば。答え合わせを患者単位で行う） */
+  patientId?: string;
 }
 
 export interface RankingRow {

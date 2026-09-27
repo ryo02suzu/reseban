@@ -43,3 +43,20 @@ describe("紙レセプトの手入力", () => {
     expect(fs.some((f) => f.ruleId === "diag-pulpectomy-pulpitis" && f.receiptNo === "2")).toBe(true);
   });
 });
+
+describe("答え合わせ", () => {
+  it("同じ月・同じ項目（患者IDがあれば同じ患者）の指摘を的中とする", async () => {
+    const { compareOutcome } = await import("@/lib/rules/outcome");
+    const findings = [
+      { id: "a", itemName: "抜髄（１歯につき）（単根管）", karteNo: "P-100", month: "202609" },
+      { id: "b", itemName: "歯科再診料", karteNo: "P-200", month: "202609" },
+    ];
+    const o = compareOutcome("202609", findings, [
+      { id: "1", month: "202609", kind: "satei", itemName: "抜髄", reason: "A", points: 234, patientId: "P-100" },
+      { id: "2", month: "202609", kind: "satei", itemName: "歯科再診料", reason: "", points: 59, patientId: "P-999" },
+      { id: "3", month: "202608", kind: "henrei", itemName: "歯科再診料", reason: "", points: 59 },
+    ]);
+    expect([o.total, o.caught, o.findingsWithoutClaim]).toEqual([2, 1, 1]);
+    expect(o.rows.map((r) => r.findingId)).toEqual(["a", undefined]);
+  });
+});

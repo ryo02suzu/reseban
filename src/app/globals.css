@@ -1555,3 +1555,53 @@ tr.selected td {
     display: none;
   }
 }
+
+/* ---------- 返戻・査定の記録 ---------- */
+.claim-form {
+  display: grid;
+  grid-template-columns: 150px 130px 140px minmax(0, 1.4fr) minmax(0, 1fr) 100px auto;
+  gap: 10px;
+}
+
+.claim-form .field {
+  margin: 0;
+}
+
+.badge.solid.henrei,
+.badge.solid.satei {
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .claim-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.outcome-card {
+  margin-bottom: 20px;
+}
+
+.outcome-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: grid;
+  gap: 6px;
+}
+
+.outcome-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.linklike {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}

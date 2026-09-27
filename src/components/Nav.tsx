@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Building2, ClipboardPen, Database, FileText, History, Settings, SquareCheckBig, Users } from "lucide-react";
+import { BarChart3, Building2, ClipboardPen, Database, FileText, History, ListChecks, Settings, SquareCheckBig, Users } from "lucide-react";
 
-const ICONS = { check: SquareCheckBig, paper: ClipboardPen, report: BarChart3, rules: FileText, settings: Settings, members: Users, log: History, clinics: Building2, masters: Database };
+const ICONS = { check: SquareCheckBig, paper: ClipboardPen, report: BarChart3, claims: ListChecks, rules: FileText, settings: Settings, members: Users, log: History, clinics: Building2, masters: Database };
 
 export interface NavItem {
   href: string;
