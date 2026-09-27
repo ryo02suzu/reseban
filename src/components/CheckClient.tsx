@@ -33,7 +33,15 @@ function fileSize(n: number) {
   return n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
 }
 
-export function CheckClient({ runs: initialRuns, storedMonths }: { runs: AuditRunListItem[]; storedMonths: string[] }) {
+export function CheckClient({
+  runs: initialRuns,
+  storedMonths,
+  canDelete,
+}: {
+  runs: AuditRunListItem[];
+  storedMonths: string[];
+  canDelete: boolean;
+}) {
   const router = useRouter();
   const [runs, setRuns] = useState(initialRuns);
   const [current, setCurrent] = useState<Picked | null>(null);
@@ -135,7 +143,7 @@ export function CheckClient({ runs: initialRuns, storedMonths }: { runs: AuditRu
               <input
                 ref={currentInput}
                 type="file"
-                accept=".UKE,.uke,.csv,.txt"
+                accept=".UKE,.uke"
                 hidden
                 onChange={(e) => {
                   setCurrentFile(e.target.files?.[0]);
@@ -186,7 +194,7 @@ export function CheckClient({ runs: initialRuns, storedMonths }: { runs: AuditRu
                 <input
                   ref={historyInput}
                   type="file"
-                  accept=".UKE,.uke,.csv,.txt"
+                  accept=".UKE,.uke"
                   multiple
                   hidden
                   onChange={(e) => {
@@ -315,9 +323,11 @@ export function CheckClient({ runs: initialRuns, storedMonths }: { runs: AuditRu
                         <Link className="btn btn-outline btn-sm" href={`/report/${r.id}`}>
                           開く
                         </Link>
-                        <button type="button" className="icon-btn danger" aria-label="削除" onClick={() => remove(r.id)}>
-                          <Trash2 size={18} />
-                        </button>
+                        {canDelete && (
+                          <button type="button" className="icon-btn danger" aria-label="削除" onClick={() => remove(r.id)}>
+                            <Trash2 size={18} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

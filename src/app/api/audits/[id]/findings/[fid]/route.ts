@@ -1,23 +1,20 @@
-import { getRun, saveRun } from "@/lib/store";
-import { handle, notFound } from "@/lib/api";
-import { summarize } from "@/lib/rules/engine";
+import { handle, HttpError, notFound, readJson } from "@/lib/api";
+import { actorOf, requireClinicApi } from "@/lib/auth";
+import { logAction } from "@/lib/repo/core";
+import { updateFinding } from "@/lib/repo/runs";
 import type { FindingStatus } from "@/lib/types";
 
 type Ctx = { params: Promise<{ id: string; fid: string }> };
 
 export async function PATCH(request: Request, { params }: Ctx) {
   const { id, fid } = await params;
-  const body = (await request.json()) as { status?: FindingStatus; memo?: string };
-  return handle(() => {
-    const run = getRun(id) ?? notFound("チェック結果");
-    const f = run.findings.find((x) => x.id === fid) ?? notFound("指摘");
-    if (body.status) {
-      if (!["open", "fixed", "ignored"].includes(body.status)) throw new Error("状態が不正です");
-      f.status = body.status;
-    }
-    if (typeof body.memo === "string") f.memo = body.memo.slice(0, 200);
-    run.summary = summarize(run.findings, run.summary.receiptCount);
-    saveRun(run);
-    return { finding: f, summary: run.summary };
+  return handle(async () => {
+    const s = await requireClinicApi();
+    const body = await readJson<{ status?: FindingStatus; memo?: string }>(request);
+    if (body.status && !["open", "fixed", "ignored"].includes(body.status)) throw new HttpError(400, "状態が不正です");
+    const patch = { status: body.status, memo: typeof body.memo === "string" ? body.memo.slice(0, 200) : undefined };
+    const res = (await updateFinding(s.clinic.id, id, fid, patch, s.user.id)) ?? notFound("指摘");
+    await logAction(actorOf(s), "finding.update", `${id}/${fid}`, { status: body.status, memo: patch.memo !== undefined });
+    return res;
   });
 }

@@ -1,35 +1,36 @@
-import { getRules, saveRules } from "@/lib/store";
-import { handle, notFound } from "@/lib/api";
+import { handle, notFound, readJson } from "@/lib/api";
+import { actorOf, requireClinicApi } from "@/lib/auth";
+import { logAction } from "@/lib/repo/core";
+import { deleteClinicRule, listClinicRules, setClinicRuleEnabled, upsertClinicRule } from "@/lib/repo/rules";
 import { validateRule } from "@/lib/rules/validate";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-/** { enabled } だけなら有効・無効の切り替え、それ以外はルール全体の更新 */
+/** { enabled } だけなら有効・無効の切り替え（共通ルールも可）、それ以外は医院独自ルールの編集 */
 export async function PATCH(request: Request, { params }: Ctx) {
   const { id } = await params;
-  const body = (await request.json()) as Record<string, unknown>;
-  return handle(() => {
-    const rules = getRules();
-    const i = rules.findIndex((r) => r.id === id);
-    if (i < 0) notFound("ルール");
-    const cur = rules[i];
+  return handle(async () => {
+    const s = await requireClinicApi(["owner"]);
+    const body = await readJson(request);
+    const current = (await listClinicRules(s.clinic.id)).find((r) => r.id === id) ?? notFound("ルール");
     const keys = Object.keys(body);
-    const next =
-      keys.length === 1 && keys[0] === "enabled"
-        ? { ...cur, enabled: body.enabled === true }
-        : validateRule({ ...body, id: cur.id, source: cur.source, priority: cur.priority, historyCount: cur.historyCount });
-    rules[i] = next;
-    saveRules(rules);
-    return { rule: next };
+    if (keys.length === 1 && keys[0] === "enabled") {
+      await setClinicRuleEnabled(s.clinic.id, id, body.enabled === true);
+      await logAction(actorOf(s), "rule.toggle", id, { enabled: body.enabled === true });
+    } else {
+      const rule = validateRule({ ...body, id, source: current.source, priority: current.priority, historyCount: current.historyCount });
+      await upsertClinicRule(s.clinic.id, rule);
+      await logAction(actorOf(s), "rule.update", id);
+    }
+    return { rule: (await listClinicRules(s.clinic.id)).find((r) => r.id === id) };
   });
 }
 
 export async function DELETE(_: Request, { params }: Ctx) {
   const { id } = await params;
-  return handle(() => {
-    const rules = getRules();
-    const rule = rules.find((r) => r.id === id) ?? notFound("ルール");
-    if (rule.source === "builtin") throw new Error("初期ルールは削除できません。無効にしてください。");
-    saveRules(rules.filter((r) => r.id !== id).map((r, i) => ({ ...r, priority: i + 1 })));
+  return handle(async () => {
+    const s = await requireClinicApi(["owner"]);
+    await deleteClinicRule(s.clinic.id, id);
+    await logAction(actorOf(s), "rule.delete", id);
   });
 }

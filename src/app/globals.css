@@ -466,6 +466,9 @@ button {
 /* ---------- 入力 ---------- */
 input[type="text"],
 input[type="search"],
+input[type="password"],
+input[type="email"],
+input[type="number"],
 select,
 textarea {
   font: inherit;
@@ -1301,4 +1304,163 @@ dialog::backdrop {
   .finding.done {
     display: none;
   }
+}
+
+/* ---------- ユーザーメニュー ---------- */
+.topbar {
+  justify-content: space-between;
+}
+
+.user-menu {
+  position: relative;
+}
+
+.user-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.user-menu-btn:hover {
+  background: var(--surface-2);
+}
+
+.user-menu-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+  min-width: 230px;
+  padding: 6px;
+  z-index: 50;
+}
+
+.user-menu-pop a,
+.user-menu-pop button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: none;
+  font-size: 14px;
+  color: var(--text);
+  text-decoration: none;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.user-menu-pop a:hover,
+.user-menu-pop button:hover {
+  background: var(--surface-2);
+  text-decoration: none;
+}
+
+.nav-section {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 16px 14px 4px;
+}
+
+/* ---------- ログインなど ---------- */
+.auth-wrap {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  background: linear-gradient(180deg, #eef4fd 0%, var(--bg) 60%);
+}
+
+.auth-box {
+  width: min(460px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 32px 32px 28px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+.auth-box.wide {
+  width: min(760px, 100%);
+}
+
+.auth-logo {
+  height: 40px;
+  display: block;
+  margin: 0 auto 20px;
+}
+
+.auth-box h1 {
+  font-size: 20px;
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+.auth-box form {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-footer {
+  display: flex;
+  gap: 16px;
+  margin-top: 18px;
+  font-size: 12px;
+}
+
+.legal {
+  line-height: 1.9;
+  font-size: 14px;
+}
+
+.legal h2 {
+  font-size: 16px;
+  margin: 22px 0 6px;
+}
+
+.legal ol,
+.legal ul {
+  padding-left: 1.4em;
+}
+
+.draft-banner {
+  background: var(--warn-soft);
+  border: 1px solid var(--warn-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.link-box {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.link-box code {
+  flex: 1;
+}
+
+.auth-box:has(.legal) {
+  width: min(780px, 100%);
 }

@@ -1,18 +1,25 @@
-import { getRules, saveRules } from "@/lib/store";
-import { handle } from "@/lib/api";
+import { handle, readJson } from "@/lib/api";
+import { actorOf, requireClinicApi } from "@/lib/auth";
+import { logAction } from "@/lib/repo/core";
+import { listClinicRules, upsertClinicRule } from "@/lib/repo/rules";
 import { validateRule } from "@/lib/rules/validate";
 
 export async function GET() {
-  return handle(() => getRules());
+  return handle(async () => {
+    const s = await requireClinicApi();
+    return listClinicRules(s.clinic.id);
+  });
 }
 
-/** 手動でルールを追加 */
+/** 医院独自のルールを追加（院長・管理者のみ） */
 export async function POST(request: Request) {
-  const body = await request.json();
-  return handle(() => {
-    const rules = getRules();
-    const rule = validateRule({ ...body, source: "manual", id: undefined, priority: rules.length + 1 });
-    saveRules([...rules, rule]);
-    return { rule };
+  return handle(async () => {
+    const s = await requireClinicApi(["owner"]);
+    const body = await readJson(request);
+    const current = await listClinicRules(s.clinic.id);
+    const rule = validateRule({ ...body, source: "manual", id: undefined, priority: current.length + 1 });
+    await upsertClinicRule(s.clinic.id, rule);
+    await logAction(actorOf(s), "rule.create", rule.id, { name: rule.name });
+    return { rule: { ...rule, origin: "clinic" } };
   });
 }

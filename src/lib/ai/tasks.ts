@@ -101,11 +101,12 @@ export async function suggestMissed(receipts: ParsedReceipt[], filedStandards: s
   const target = receipts.slice(0, MAX_RECEIPTS);
   const lines = target.map((r, i) => {
     const diags = r.diagnoses.map((d) => `${d.name}${d.teeth.length ? `(${teethLabel(d.teeth)})` : ""}`).join("、");
+    const age = r.ageEnd !== null ? `${r.ageEnd}歳` : "年齢不明";
     const acts = r.acts
       .filter((a) => a.name)
       .map((a) => `${a.name}×${a.count}${a.teeth.length ? `(${teethLabel(a.teeth)})` : ""}`)
       .join("、");
-    return maskText(`#${i} 病名：${diags || "なし"} ／ 算定：${acts || "なし"}`);
+    return maskText(`#${i} ${age} 病名：${diags || "なし"} ／ 算定：${acts || "なし"}`);
   });
   const out = await call(
     SuggestSchema,

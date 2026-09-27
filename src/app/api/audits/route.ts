@@ -1,17 +1,28 @@
-import { runAudit } from "@/lib/audit";
-import { fileBytes, handle } from "@/lib/api";
+import { runAudit, MAX_UPLOAD_BYTES } from "@/lib/audit";
+import { fileBytes, handle, HttpError } from "@/lib/api";
+import { actorOf, requireClinicApi } from "@/lib/auth";
+import { logAction } from "@/lib/repo/core";
 
 export async function POST(request: Request) {
   return handle(async () => {
+    const s = await requireClinicApi();
     const form = await request.formData();
-    const current = await fileBytes(form.get("current"));
-    if (!current) throw new Error("当月のファイルを選んでください");
+    const current = await fileBytes(form.get("current"), MAX_UPLOAD_BYTES);
+    if (!current) throw new HttpError(400, "当月のファイルを選んでください");
     const history: Uint8Array[] = [];
-    for (const v of form.getAll("history")) {
-      const b = await fileBytes(v);
+    const entries = form.getAll("history");
+    if (entries.length > 12) throw new HttpError(400, "過去分は12ファイルまでです");
+    for (const v of entries) {
+      const b = await fileBytes(v, MAX_UPLOAD_BYTES);
       if (b) history.push(b);
     }
-    const run = runAudit({ current, history });
+    const run = await runAudit(s.clinic, { current, history }, s.user.id);
+    await logAction(actorOf(s), "audit.run", run.id, {
+      month: run.targetMonth,
+      receipts: run.summary.receiptCount,
+      findings: run.findings.length,
+      historyFiles: history.length,
+    });
     return { id: run.id };
   });
 }

@@ -4,13 +4,19 @@ import "server-only";
 export async function handle<T>(fn: () => Promise<T> | T): Promise<Response> {
   try {
     const data = await fn();
-    return Response.json(data ?? { ok: true });
+    if (data instanceof Response) return data;
+    return Response.json(data ?? { ok: true }, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
-    const status = e instanceof HttpError ? e.status : 400;
-    const message = e instanceof Error ? e.message : String(e);
-    if (!(e instanceof HttpError)) console.error(e);
-    return Response.json({ error: message }, { status });
+    if (e instanceof HttpError) return Response.json({ error: e.message }, { status: e.status });
+    if (e instanceof Error && isUserError(e)) return Response.json({ error: e.message }, { status: 400 });
+    console.error(e);
+    return Response.json({ error: "サーバーでエラーが発生しました。時間をおいて再度お試しください。" }, { status: 500 });
   }
+}
+
+/** 利用者に見せてよいエラー（日本語メッセージ）かどうか */
+function isUserError(e: Error) {
+  return /[぀-ヿ一-鿿]/.test(e.message);
 }
 
 export class HttpError extends Error {
@@ -26,7 +32,16 @@ export function notFound(what = "データ"): never {
   throw new HttpError(404, `${what}が見つかりません`);
 }
 
-export async function fileBytes(v: FormDataEntryValue | null): Promise<Uint8Array | null> {
+export async function fileBytes(v: FormDataEntryValue | null, maxBytes = 30 * 1024 * 1024): Promise<Uint8Array | null> {
   if (!v || typeof v === "string") return null;
+  if (v.size > maxBytes) throw new HttpError(413, `ファイルが大きすぎます（${Math.round(maxBytes / 1024 / 1024)}MBまで）`);
   return new Uint8Array(await v.arrayBuffer());
+}
+
+export async function readJson<T = Record<string, unknown>>(req: Request): Promise<T> {
+  try {
+    return (await req.json()) as T;
+  } catch {
+    throw new HttpError(400, "リクエストの形式が正しくありません");
+  }
 }

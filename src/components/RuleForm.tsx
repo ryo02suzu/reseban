@@ -2,13 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Rule } from "@/lib/rules/types";
+
+type EditableRule = Exclude<Rule, { kind: "official" }>;
+type EditableKind = EditableRule["kind"];
 import type { Impact } from "@/lib/types";
 import { CATEGORY_LABELS, IMPACT_LABELS } from "@/lib/types";
 
 /** 画面用の平らな入力値（名称はカンマ区切り） */
 interface FormState {
   name: string;
-  kind: Rule["kind"];
+  kind: EditableKind;
   impact: Impact;
   basis: string;
   fix: string;
@@ -24,6 +27,7 @@ interface FormState {
   lookbackMonths: string;
   mustPrecede: boolean;
   diagnosis: string;
+  abbrs: string;
   matchTooth: boolean;
   keywords: string;
   standard: string;
@@ -48,6 +52,7 @@ const EMPTY: FormState = {
   lookbackMonths: "0",
   mustPrecede: false,
   diagnosis: "",
+  abbrs: "",
   matchTooth: true,
   keywords: "",
   standard: "",
@@ -55,19 +60,27 @@ const EMPTY: FormState = {
 };
 
 const join = (a?: string[]) => (a ?? []).join("、");
+const refText = (r?: { names?: string[]; codes?: string[] }) => join([...(r?.codes ?? []), ...(r?.names ?? [])]);
+/** 9桁の数字はマスターのコード、それ以外は名称の一部として扱う */
+const toRef = (s: string, exclude?: string) => {
+  const parts = split(s);
+  const codes = parts.filter((p) => /^\d{9}$/.test(p));
+  const names = parts.filter((p) => !/^\d{9}$/.test(p));
+  return { ...(codes.length ? { codes } : {}), ...(names.length ? { names } : {}), ...(exclude ? { excludeNames: split(exclude) } : {}) };
+};
 const split = (s: string) =>
   s
     .split(/[、,，\n]/)
     .map((x) => x.trim())
     .filter(Boolean);
 
-function fromRule(r: Rule): FormState {
+function fromRule(r: EditableRule): FormState {
   const f: FormState = { ...EMPTY, name: r.name, kind: r.kind, impact: r.impact, basis: r.basis, fix: r.fix };
   switch (r.kind) {
     case "frequency":
       return {
         ...f,
-        target: join(r.target.names),
+        target: refText(r.target),
         exclude: join(r.target.excludeNames),
         max: String(r.max),
         per: r.per,
@@ -77,48 +90,48 @@ function fromRule(r: Rule): FormState {
     case "exclusive":
       return {
         ...f,
-        target: join(r.a.names),
+        target: refText(r.a),
         exclude: join(r.a.excludeNames),
-        other: join(r.b.names),
+        other: refText(r.b),
         scope: r.scope,
         sameTooth: !!r.sameTooth,
       };
     case "prerequisite":
       return {
         ...f,
-        target: join(r.target.names),
+        target: refText(r.target),
         exclude: join(r.target.excludeNames),
-        other: join(r.required.names),
+        other: refText(r.required),
         lookbackMonths: String(r.lookbackMonths),
         mustPrecede: !!r.mustPrecede,
       };
     case "diagnosis":
       return {
         ...f,
-        target: join(r.target.names),
+        target: refText(r.target),
         exclude: join(r.target.excludeNames),
         diagnosis: join(r.diagnosis.names),
         matchTooth: r.matchTooth,
       };
     case "comment":
-      return { ...f, target: join(r.target.names), exclude: join(r.target.excludeNames), keywords: join(r.comment.keywords) };
+      return { ...f, target: refText(r.target), exclude: join(r.target.excludeNames), keywords: join(r.comment.keywords) };
     case "facility":
       return r.mode === "required"
-        ? { ...f, standard: r.standard, mode: "required", target: join(r.target?.names), exclude: join(r.target?.excludeNames) }
+        ? { ...f, standard: r.standard, mode: "required", target: refText(r.target), exclude: join(r.target?.excludeNames) }
         : {
             ...f,
             standard: r.standard,
             mode: "missed",
-            target: join(r.when?.names),
+            target: refText(r.when),
             exclude: join(r.when?.excludeNames),
-            other: join(r.expect?.names),
+            other: refText(r.expect),
           };
   }
 }
 
 function toRaw(f: FormState): Record<string, unknown> {
-  const target = { names: split(f.target), excludeNames: split(f.exclude) };
-  const other = { names: split(f.other) };
+  const target = toRef(f.target, f.exclude);
+  const other = toRef(f.other);
   const base = { name: f.name, kind: f.kind, impact: f.impact, basis: f.basis, fix: f.fix };
   switch (f.kind) {
     case "frequency":
@@ -128,7 +141,7 @@ function toRaw(f: FormState): Record<string, unknown> {
     case "prerequisite":
       return { ...base, target, required: other, lookbackMonths: Number(f.lookbackMonths), mustPrecede: f.mustPrecede };
     case "diagnosis":
-      return { ...base, target, diagnosis: { names: split(f.diagnosis) }, matchTooth: f.matchTooth };
+      return { ...base, target, diagnosis: { names: split(f.diagnosis), abbrs: split(f.abbrs) }, matchTooth: f.matchTooth, perTooth: f.perTooth };
     case "comment":
       return { ...base, target, comment: { keywords: split(f.keywords) } };
     case "facility":
@@ -138,7 +151,7 @@ function toRaw(f: FormState): Record<string, unknown> {
   }
 }
 
-const TARGET_LABEL: Record<Rule["kind"], string> = {
+const TARGET_LABEL: Record<EditableKind, string> = {
   frequency: "対象の診療行為",
   exclusive: "項目A",
   prerequisite: "対象の診療行為",
@@ -152,15 +165,15 @@ export function RuleFormDialog({
   title,
   initial,
   submitLabel,
-  standards,
+  facilities,
   onClose,
   onSubmit,
 }: {
   open: boolean;
   title: string;
-  initial?: Rule;
+  initial?: EditableRule;
   submitLabel: string;
-  standards: string[];
+  facilities: { code: string; name: string }[];
   onClose: () => void;
   onSubmit: (raw: Record<string, unknown>) => Promise<void>;
 }) {
@@ -181,7 +194,7 @@ export function RuleFormDialog({
           title={title}
           initial={initial}
           submitLabel={submitLabel}
-          standards={standards}
+          facilities={facilities}
           onClose={onClose}
           onSubmit={onSubmit}
         />
@@ -194,14 +207,14 @@ function RuleFormBody({
   title,
   initial,
   submitLabel,
-  standards,
+  facilities,
   onClose,
   onSubmit,
 }: {
   title: string;
-  initial?: Rule;
+  initial?: EditableRule;
   submitLabel: string;
-  standards: string[];
+  facilities: { code: string; name: string }[];
   onClose: () => void;
   onSubmit: (raw: Record<string, unknown>) => Promise<void>;
 }) {
@@ -244,8 +257,8 @@ function RuleFormBody({
         {text("name", "ルール名", "例：歯科疾患管理料は月1回", true)}
         <label className="field">
           <span>チェックの種類</span>
-          <select value={f.kind} onChange={(e) => set("kind", e.target.value as Rule["kind"])}>
-            {(Object.keys(TARGET_LABEL) as Rule["kind"][]).map((k) => (
+          <select value={f.kind} onChange={(e) => set("kind", e.target.value as EditableKind)}>
+            {(Object.keys(TARGET_LABEL) as EditableKind[]).map((k) => (
               <option key={k} value={k}>
                 {CATEGORY_LABELS[k]}
               </option>
@@ -266,11 +279,11 @@ function RuleFormBody({
         {f.kind === "facility" && (
           <>
             <label className="field">
-              <span>施設基準</span>
+              <span>施設基準コード（例：1352、複数はカンマ区切り）</span>
               <input type="text" list="standards" value={f.standard} onChange={(e) => set("standard", e.target.value)} />
               <datalist id="standards">
-                {standards.map((s) => (
-                  <option key={s} value={s} />
+                {facilities.map((s) => (
+                  <option key={s.code} value={s.code}>{s.name}</option>
                 ))}
               </datalist>
             </label>
@@ -284,7 +297,7 @@ function RuleFormBody({
           </>
         )}
 
-        {text("target", facilityMissed ? "きっかけの診療行為（例：初診料）" : TARGET_LABEL[f.kind], "名称の一部。複数は「、」区切り")}
+        {text("target", facilityMissed ? "きっかけの診療行為（例：初診料）" : TARGET_LABEL[f.kind], "名称の一部か9桁のコード。複数は「、」区切り")}
         {text("exclude", "除外する名称（任意）", "例：加算")}
 
         {f.kind === "frequency" && (

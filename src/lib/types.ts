@@ -110,33 +110,3 @@ export interface AuditRun {
 }
 
 export type AuditRunListItem = Omit<AuditRun, "findings" | "suggestions">;
-
-/** 施設基準の届出状況 */
-export interface FacilityStandard {
-  name: string;
-  filed: boolean;
-}
-
-export type MasterKind = "shinryo" | "byomei" | "shishiki" | "comment";
-
-export const MASTER_LABELS: Record<MasterKind, string> = {
-  shinryo: "歯科診療行為マスター",
-  byomei: "傷病名マスター",
-  shishiki: "歯式マスター",
-  comment: "コメントマスター",
-};
-
-export interface MasterStatus {
-  kind: MasterKind;
-  count: number;
-  importedAt?: string;
-  fileName?: string;
-  demo?: boolean;
-}
-
-export interface Settings {
-  clinicName: string;
-  clinicCode: string;
-  facilityStandards: FacilityStandard[];
-  aiEnabled: boolean;
-}
