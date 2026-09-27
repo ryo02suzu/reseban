@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, 
 import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
+import { DEMO_MODE } from "../demo/mode";
 
 const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number, opts: object) => Promise<Buffer>;
 
@@ -63,6 +64,8 @@ function dataKey(): Buffer {
     cachedKey = k;
     return k;
   }
+  // デモ環境：DB もメモリ上なので、鍵も起動ごとの使い捨てでよい
+  if (DEMO_MODE) return (cachedKey = randomBytes(32));
   if (process.env.NODE_ENV === "production" && process.env.RESEBAN_ALLOW_DEV_KEY !== "1") {
     throw new Error("本番環境では DATA_ENCRYPTION_KEY の設定が必要です");
   }

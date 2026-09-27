@@ -3,13 +3,14 @@ import path from "node:path";
 import fs from "node:fs";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "./schema";
+import { DEMO_MODE } from "../demo/mode";
 
 /**
  * データベース接続。
  *   DATABASE_URL=postgres://...   本番（例：Amazon RDS for PostgreSQL 東京リージョン、保存時暗号化あり）
  *   DATABASE_URL 未設定            開発用の組み込み PostgreSQL（PGlite、./data/pglite に保存）
  *   DATABASE_URL=pglite://memory   テスト用（メモリ上）
- *   RESEBAN_DEMO=1                 デモ用（メモリ上、起動のたびに架空の医院を作り直す）
+ *   RESEBAN_DEMO=1                 デモ用（メモリ上、起動のたびに架空の医院を作り直す。src/lib/demo/mode.ts）
  * 起動後、最初のアクセスでマイグレーション（drizzle/）を適用する。
  */
 export type Db = NodePgDatabase<typeof schema>;
@@ -45,9 +46,8 @@ async function connect(): Promise<Db> {
   const { PGlite } = await import("@electric-sql/pglite");
   const { drizzle } = await import("drizzle-orm/pglite");
   const { migrate } = await import("drizzle-orm/pglite/migrator");
-  const demo = process.env.RESEBAN_DEMO === "1";
   let client;
-  if (url === "pglite://memory" || demo) {
+  if (url === "pglite://memory" || DEMO_MODE) {
     client = new PGlite();
   } else {
     const dir = path.join(process.env.RESEBAN_DATA_DIR ?? path.join(/*turbopackIgnore: true*/ process.cwd(), "data"), "pglite");
@@ -56,7 +56,7 @@ async function connect(): Promise<Db> {
   }
   const db = drizzle(client, { schema });
   await migrate(db, { migrationsFolder: migrationsFolder() });
-  if (demo) {
+  if (DEMO_MODE) {
     const { seedDemo } = await import("./demo-seed");
     const { TERMS_VERSION } = await import("../terms");
     await seedDemo(db as unknown as Db, TERMS_VERSION);
